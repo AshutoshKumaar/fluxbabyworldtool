@@ -34,6 +34,27 @@ const formatDate = (value) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+const toIsoDate = (value) => {
+  if (!value) return "";
+  const str = String(value).trim();
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+    const [dd, mm, yyyy] = str.split("/");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return "";
+};
+
+const normalizeClassKey = (value) => {
+  if (!value) return "";
+  const str = String(value).toUpperCase();
+  if (str.includes("UKG")) return "UKG";
+  const match = str.match(/\d/);
+  if (match) return match[0];
+  return String(value).trim();
+};
+
 export default function AdmitCardSection({
   students,
   onFetchMonthlyFees
@@ -112,7 +133,11 @@ export default function AdmitCardSection({
     const map = {};
     snap.docs.forEach((docSnap) => {
       const data = docSnap.data();
-      map[data.className] = data.rows || [];
+      const rows = (data.rows || []).map((row) => ({
+        ...row,
+        date: toIsoDate(row.date)
+      }));
+      map[data.className] = rows;
     });
     setScheduleByClass(map);
     setScheduleDrafts(map);
@@ -253,9 +278,7 @@ export default function AdmitCardSection({
   const allowDownload = permissionMap[selectedId] || false;
   const canDownload = isPaid || allowDownload;
   const scheduleRows = selectedStudent
-    ? scheduleByClass[String(selectedStudent.class).toUpperCase()] ||
-      scheduleByClass[String(selectedStudent.class)] ||
-      []
+    ? scheduleByClass[normalizeClassKey(selectedStudent.class)] || []
     : [];
 
   const downloadAdmitCard = (student) => {
@@ -269,7 +292,7 @@ export default function AdmitCardSection({
         (row) => `
           <tr>
             <td>${row.day}</td>
-            <td>${row.date}</td>
+            <td>${formatDate(row.date)}</td>
             <td>${row.subject}</td>
           </tr>
         `
@@ -584,7 +607,7 @@ export default function AdmitCardSection({
                     </select>
                     <input
                       type="date"
-                      value={row.date}
+                      value={toIsoDate(row.date)}
                       onChange={(e) =>
                         updateScheduleRow(index, { date: e.target.value })
                       }
@@ -767,9 +790,9 @@ export default function AdmitCardSection({
                               <td className="py-2 border-b border-slate-100">
                                 {row.day}
                               </td>
-                              <td className="py-2 border-b border-slate-100">
-                                {row.date}
-                              </td>
+                            <td className="py-2 border-b border-slate-100">
+                              {formatDate(row.date)}
+                            </td>
                               <td className="py-2 border-b border-slate-100">
                                 {row.subject}
                               </td>

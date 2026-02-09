@@ -28,6 +28,15 @@ const formatDate = (value) => {
 const getTotalDue = (fees = []) =>
   fees.reduce((sum, fee) => sum + Number(fee.dueFees || 0), 0);
 
+const normalizeClassKey = (value) => {
+  if (!value) return "";
+  const str = String(value).toUpperCase();
+  if (str.includes("UKG")) return "UKG";
+  const match = str.match(/\d/);
+  if (match) return match[0];
+  return String(value).trim();
+};
+
 function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
@@ -86,26 +95,11 @@ function ParentDashboard() {
         setExam(latestExam);
 
         if (latestExam) {
+          const classKey = normalizeClassKey(studentDoc.data()?.class || "");
           const scheduleDoc = await getDoc(
-            doc(
-              db,
-              "exams",
-              latestExam.id,
-              "schedules",
-              String(studentDoc.data()?.class || "").toUpperCase()
-            )
+            doc(db, "exams", latestExam.id, "schedules", classKey)
           );
-          const scheduleAltDoc = await getDoc(
-            doc(
-              db,
-              "exams",
-              latestExam.id,
-              "schedules",
-              String(studentDoc.data()?.class || "")
-            )
-          );
-          const scheduleData =
-            scheduleDoc.data()?.rows || scheduleAltDoc.data()?.rows || [];
+          const scheduleData = scheduleDoc.data()?.rows || [];
           setScheduleRows(scheduleData);
 
           const permissionDoc = await getDoc(
