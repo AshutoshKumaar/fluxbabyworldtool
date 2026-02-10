@@ -73,11 +73,14 @@ export default function AdmitCardSection({
   const [examCenter, setExamCenter] = useState("Flux Baby World Campus");
   const [examDate, setExamDate] = useState("");
   const [examTime, setExamTime] = useState("");
+  const [savingExam, setSavingExam] = useState(false);
 
   const [scheduleByClass, setScheduleByClass] = useState({});
   const [scheduleDrafts, setScheduleDrafts] = useState({});
   const [selectedClass, setSelectedClass] = useState("UKG");
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   const [permissionMap, setPermissionMap] = useState({});
   const [savingPermission, setSavingPermission] = useState(false);
@@ -176,6 +179,7 @@ export default function AdmitCardSection({
   }, [selectedExamId, exams]);
 
   const handleCreateExam = async () => {
+    setSavingExam(true);
     const docRef = await addDoc(collection(db, "exams"), {
       examName,
       session,
@@ -188,10 +192,12 @@ export default function AdmitCardSection({
     });
     setSelectedExamId(docRef.id);
     fetchExams();
+    setSavingExam(false);
   };
 
   const handleSaveExam = async () => {
     if (!selectedExamId) return;
+    setSavingExam(true);
     await setDoc(
       doc(db, "exams", selectedExamId),
       {
@@ -206,6 +212,7 @@ export default function AdmitCardSection({
       { merge: true }
     );
     fetchExams();
+    setSavingExam(false);
   };
 
   const rowsForClass = scheduleDrafts[selectedClass] || [];
@@ -255,6 +262,10 @@ export default function AdmitCardSection({
     );
     await fetchSchedules(selectedExamId);
     setSavingSchedule(false);
+    setScheduleSaved(true);
+    setTimeout(() => setScheduleSaved(false), 2000);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2200);
   };
 
   const togglePermission = async (studentId, allowDownload) => {
@@ -434,6 +445,11 @@ export default function AdmitCardSection({
 
   return (
     <div className="card card-pad mt-8">
+      {showToast && (
+        <div className="fixed top-24 right-4 z-[60] bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-lg animate-[toastInOut_2.2s_ease-in-out]">
+          Saved ✓
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
@@ -550,17 +566,25 @@ export default function AdmitCardSection({
                 <button
                   type="button"
                   onClick={handleSaveExam}
-                  className="px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700"
-                  disabled={!selectedExamId}
+                  className="px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                  disabled={!selectedExamId || savingExam}
                 >
-                  Save Exam
+                  {savingExam ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Exam"
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={handleCreateExam}
-                  className="px-4 py-2 rounded-lg text-sm border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-lg text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                  disabled={savingExam}
                 >
-                  Create New Exam
+                  {savingExam ? "Saving..." : "Create New Exam"}
                 </button>
               </div>
             </div>
@@ -649,10 +673,21 @@ export default function AdmitCardSection({
                 <button
                   type="button"
                   onClick={saveSchedule}
-                  className="px-3 py-2 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                  className={`px-3 py-2 rounded-lg text-sm text-white hover:bg-emerald-700 disabled:opacity-60 ${
+                    scheduleSaved ? "bg-indigo-600" : "bg-emerald-600"
+                  }`}
                   disabled={!selectedExamId || savingSchedule}
                 >
-                  {savingSchedule ? "Saving..." : "Save Timetable"}
+                  {savingSchedule ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      Saving...
+                    </span>
+                  ) : scheduleSaved ? (
+                    "Edit Timetable"
+                  ) : (
+                    "Save Timetable"
+                  )}
                 </button>
               </div>
             </div>
