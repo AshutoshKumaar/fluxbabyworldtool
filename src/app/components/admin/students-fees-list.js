@@ -37,8 +37,21 @@ export default function StudentsFeesList({
   const [editModal, setEditModal] = useState(null);
 
   const classOptions = useMemo(() => {
-    return ["all", "1", "2", "3", "4"];
-  }, []);
+    const unique = Array.from(
+      new Set(
+        students
+          .map((item) => String(item.class || "").trim())
+          .filter(Boolean)
+      )
+    );
+    return ["all", ...unique];
+  }, [students]);
+
+  const getStudentById = (studentId) =>
+    students.find((item) => item.id === studentId);
+
+  const usesTransport = (student) =>
+    !!student?.transportMode && student.transportMode !== "on-foot";
 
   const escapeRegex = (value) =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -78,12 +91,14 @@ export default function StudentsFeesList({
   }, [students, searchTerm, classFilter]);
 
   const getInput = (studentId) => {
+    const student = getStudentById(studentId);
     return (
       feeInputs[studentId] || {
         month: defaultMonth,
         year: defaultYear,
         totalFees: "",
-        paidFees: ""
+        paidFees: "",
+        transportFee: usesTransport(student) ? Number(student?.transportFee || 0) : 0
       }
     );
   };
@@ -107,28 +122,43 @@ export default function StudentsFeesList({
     setExpandedId(studentId);
     if (!feesByStudent[studentId]) {
       setLoadingFees((prev) => ({ ...prev, [studentId]: true }));
-      const data = await onFetchMonthlyFees(studentId);
-      setFeesByStudent((prev) => ({ ...prev, [studentId]: data }));
-      setLoadingFees((prev) => ({ ...prev, [studentId]: false }));
+      try {
+        const data = await onFetchMonthlyFees(studentId);
+        setFeesByStudent((prev) => ({ ...prev, [studentId]: data }));
+      } catch (err) {
+        console.error(err);
+        alert("Could not load fee history. Please retry.");
+      } finally {
+        setLoadingFees((prev) => ({ ...prev, [studentId]: false }));
+      }
     }
   };
 
   const handleSaveFees = async (studentId) => {
     const input = getInput(studentId);
     setSavingFees((prev) => ({ ...prev, [studentId]: true }));
-    await onSaveMonthlyFees(studentId, input);
-    const data = await onFetchMonthlyFees(studentId);
-    setFeesByStudent((prev) => ({ ...prev, [studentId]: data }));
-    setFeeInputs((prev) => ({
-      ...prev,
-      [studentId]: {
-        month: defaultMonth,
-        year: defaultYear,
-        totalFees: "",
-        paidFees: ""
-      }
-    }));
-    setSavingFees((prev) => ({ ...prev, [studentId]: false }));
+    try {
+      await onSaveMonthlyFees(studentId, input);
+      const data = await onFetchMonthlyFees(studentId);
+      setFeesByStudent((prev) => ({ ...prev, [studentId]: data }));
+      setFeeInputs((prev) => ({
+        ...prev,
+        [studentId]: {
+          month: defaultMonth,
+          year: defaultYear,
+          totalFees: "",
+          paidFees: "",
+          transportFee: usesTransport(getStudentById(studentId))
+            ? Number(getStudentById(studentId)?.transportFee || 0)
+            : 0
+        }
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Could not save monthly fees. Please retry.");
+    } finally {
+      setSavingFees((prev) => ({ ...prev, [studentId]: false }));
+    }
   };
 
   const formatUpdatedAt = (value) => {
@@ -145,6 +175,7 @@ export default function StudentsFeesList({
       month: fee.month,
       year: fee.year,
       totalFees: fee.totalFees,
+      transportFee: fee.transportFee || 0,
       paidFees: fee.paidFees
     });
   };
@@ -154,14 +185,20 @@ export default function StudentsFeesList({
   const saveEditModal = async () => {
     if (!editModal) return;
     setSavingFees((prev) => ({ ...prev, [editModal.studentId]: true }));
-    await onSaveMonthlyFees(editModal.studentId, editModal);
-    const data = await onFetchMonthlyFees(editModal.studentId);
-    setFeesByStudent((prev) => ({
-      ...prev,
-      [editModal.studentId]: data
-    }));
-    setSavingFees((prev) => ({ ...prev, [editModal.studentId]: false }));
-    closeEditModal();
+    try {
+      await onSaveMonthlyFees(editModal.studentId, editModal);
+      const data = await onFetchMonthlyFees(editModal.studentId);
+      setFeesByStudent((prev) => ({
+        ...prev,
+        [editModal.studentId]: data
+      }));
+      closeEditModal();
+    } catch (err) {
+      console.error(err);
+      alert("Could not update fee record. Please retry.");
+    } finally {
+      setSavingFees((prev) => ({ ...prev, [editModal.studentId]: false }));
+    }
   };
 
   return (
@@ -290,6 +327,7 @@ export default function StudentsFeesList({
                       >
                         {student.class}
                       </span>{" "}
+                      {student.section ? `(${student.section}) ` : ""}
                       | Roll {highlightText(student.rollNo, searchTerm)}
                     </p>
                     {student.fatherName && (
@@ -342,6 +380,12 @@ export default function StudentsFeesList({
                         </p>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-xs text-slate-500">Section</p>
+                        <p className="font-semibold text-slate-800">
+                          {student.section || "—"}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3">
                         <p className="text-xs text-slate-500">Mother</p>
                         <p className="font-semibold text-slate-800">
                           {student.motherName || "—"}
@@ -357,6 +401,19 @@ export default function StudentsFeesList({
                         <p className="text-xs text-slate-500">Blood Group</p>
                         <p className="font-semibold text-slate-800">
                           {student.bloodGroup || "—"}
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-xs text-slate-500">Transport</p>
+                        <p className="font-semibold text-slate-800">
+                          {student.transportMode
+                            ? student.transportMode
+                                .replace("-", " ")
+                                .replace("riksha", "Riksha")
+                                .replace("toto", "ToTo")
+                                .replace("school van", "School Van")
+                                .replace("on foot", "On Foot")
+                            : "On Foot"}
                         </p>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3">
@@ -380,56 +437,113 @@ export default function StudentsFeesList({
                     </div>
                     <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <select
-                          value={input.month}
-                          onChange={(e) =>
-                            updateInput(student.id, {
-                              month: Number(e.target.value)
-                            })
-                          }
-                          className="h-10 border border-slate-200 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                          {monthOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          value={input.year}
-                          onChange={(e) =>
-                            updateInput(student.id, {
-                              year: Number(e.target.value)
-                            })
-                          }
-                          className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="Year"
-                        />
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Month
+                          </p>
+                          <select
+                            value={input.month}
+                            onChange={(e) =>
+                              updateInput(student.id, {
+                                month: Number(e.target.value)
+                              })
+                            }
+                            className="h-10 w-full border border-slate-200 rounded-lg px-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            {monthOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Year
+                          </p>
+                          <input
+                            type="number"
+                            value={input.year}
+                            onChange={(e) =>
+                              updateInput(student.id, {
+                                year: Number(e.target.value)
+                              })
+                            }
+                            className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Year"
+                          />
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <input
-                          type="number"
-                          value={input.totalFees}
-                          onChange={(e) =>
-                            updateInput(student.id, {
-                              totalFees: e.target.value
-                            })
-                          }
-                          className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="Total Fees"
-                        />
-                        <input
-                          type="number"
-                          value={input.paidFees}
-                          onChange={(e) =>
-                            updateInput(student.id, {
-                              paidFees: e.target.value
-                            })
-                          }
-                          className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder="Paid Fees"
-                        />
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Tuition Charge
+                          </p>
+                          <input
+                            type="number"
+                            value={input.totalFees}
+                            onChange={(e) =>
+                              updateInput(student.id, {
+                                totalFees: e.target.value
+                              })
+                            }
+                            className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Tuition Charge"
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Transport Charge
+                          </p>
+                          <input
+                            type="number"
+                            value={input.transportFee}
+                            onChange={(e) =>
+                              updateInput(student.id, {
+                                transportFee: e.target.value
+                              })
+                            }
+                            disabled={!usesTransport(student)}
+                            className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                            placeholder="Transport Charge"
+                          />
+                        </div>
+                      </div>
+                      {!usesTransport(student) && (
+                        <p className="text-xs text-slate-500">
+                          Transport mode is On Foot, so transport charge is 0.
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Paid Amount
+                          </p>
+                          <input
+                            type="number"
+                            value={input.paidFees}
+                            onChange={(e) =>
+                              updateInput(student.id, {
+                                paidFees: e.target.value
+                              })
+                            }
+                            className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Paid Fees"
+                          />
+                        </div>
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                            Monthly Charge
+                          </p>
+                          <input
+                            value={`Rs ${
+                              Number(input.totalFees || 0) +
+                              Number(input.transportFee || 0)
+                            }`}
+                            readOnly
+                            className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm bg-slate-50 text-slate-600"
+                          />
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -468,7 +582,8 @@ export default function StudentsFeesList({
                                 {fee.monthName} {fee.year}
                               </p>
                               <p className="text-xs text-slate-500">
-                                Total: Rs {fee.totalFees} | Paid: Rs {fee.paidFees}
+                                Tuition: Rs {fee.totalFees} | Transport: Rs{" "}
+                                {fee.transportFee || 0} | Paid: Rs {fee.paidFees}
                               </p>
                               <p className="text-[11px] text-slate-400">
                                 Updated: {formatUpdatedAt(fee.updatedAt)}
@@ -568,8 +683,22 @@ export default function StudentsFeesList({
                     }))
                   }
                   className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Total Fees"
+                  placeholder="Tuition Charge"
                 />
+                <input
+                  type="number"
+                  value={editModal.transportFee}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({
+                      ...prev,
+                      transportFee: e.target.value
+                    }))
+                  }
+                  className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Transport Charge"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <input
                   type="number"
                   value={editModal.paidFees}
@@ -581,6 +710,14 @@ export default function StudentsFeesList({
                   }
                   className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="Paid Fees"
+                />
+                <input
+                  value={`Net: Rs ${
+                    Number(editModal.totalFees || 0) +
+                    Number(editModal.transportFee || 0)
+                  }`}
+                  readOnly
+                  className="h-10 border border-slate-200 rounded-lg px-3 text-sm bg-slate-50 text-slate-600"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">

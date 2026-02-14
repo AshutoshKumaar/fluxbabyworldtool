@@ -72,8 +72,8 @@ export default function Navbar({ role = "admin" }) {
 
             {role === "admin" && (
               <>
-                <NavItem icon={Users} label="Students" path="/admin/dashboard" />
-                <NavItem icon={IndianRupee} label="Fees" path="/admin/dashboard" />
+                <NavItem icon={Users} label="Students" path="/admin/students" />
+                <NavItem icon={IndianRupee} label="Fees" path="/admin/fees" />
               </>
             )}
 
@@ -124,8 +124,8 @@ export default function Navbar({ role = "admin" }) {
 
             {role === "admin" && (
               <>
-                <NavItem icon={Users} label="Students" path="/admin/dashboard" />
-                <NavItem icon={IndianRupee} label="Fees" path="/admin/dashboard" />
+                <NavItem icon={Users} label="Students" path="/admin/students" />
+                <NavItem icon={IndianRupee} label="Fees" path="/admin/fees" />
               </>
             )}
 

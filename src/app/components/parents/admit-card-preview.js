@@ -3,9 +3,14 @@ export default function AdmitCardPreview({
   exam,
   scheduleRows,
   canDownload,
+  blockReason,
   onDownload,
   formatDate
 }) {
+  const classWithSection = `Class ${student?.class || "--"}${
+    student?.section ? ` (${student.section})` : ""
+  }`;
+
   if (!student) {
     return (
       <div className="card-soft">
@@ -37,7 +42,7 @@ export default function AdmitCardPreview({
               {student.name}
             </p>
             <p className="text-sm text-slate-500">
-              Class {student.class} | Roll {student.rollNo}
+              {classWithSection} | Roll {student.rollNo}
             </p>
           </div>
         </div>
@@ -134,7 +139,7 @@ export default function AdmitCardPreview({
           </div>
         ) : (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-            Your admit card could not be downloaded without clearing the due.
+            {blockReason || "Admit card download is not available."}
           </div>
         )}
       </div>

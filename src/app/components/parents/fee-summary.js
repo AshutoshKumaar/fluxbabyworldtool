@@ -2,6 +2,7 @@ export default function FeeSummary({
   totalDue,
   isPaid,
   canDownload,
+  blockReason,
   onDownload,
   onPayNow
 }) {
@@ -23,9 +24,9 @@ export default function FeeSummary({
         </span>
       </div>
 
-      {!isPaid && (
+      {!canDownload && (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          Your admit card could not be downloaded without clearing the due.
+          {blockReason || "Admit card download is not available."}
         </div>
       )}
 

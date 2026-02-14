@@ -41,6 +41,15 @@ export default function LoginPage() {
 
       const role = snap.data().role;
 
+      if (isParent && role !== "parent") {
+        alert("Please use Admin Login for this account.");
+        return;
+      }
+      if (!isParent && role !== "admin") {
+        alert("Please use Parent Login for this account.");
+        return;
+      }
+
       if (role === "admin") {
         router.push("/admin/dashboard");
       } else if (role === "parent") {

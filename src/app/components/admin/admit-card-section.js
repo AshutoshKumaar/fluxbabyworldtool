@@ -7,6 +7,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   serverTimestamp,
   setDoc
@@ -14,7 +15,7 @@ import {
 
 const classOptions = ["UKG", "1", "2", "3", "4"];
 
-const emptyRow = { day: "", date: "", month: "", subject: "" };
+const emptyRow = { day: "", date: "", subject: "" };
 const dayOptions = [
   "Monday",
   "Tuesday",
@@ -55,6 +56,13 @@ const normalizeClassKey = (value) => {
   return String(value).trim();
 };
 
+const formatClassSection = (student) => {
+  if (!student) return "--";
+  const cls = student.class || "--";
+  const sec = student.section ? ` (${student.section})` : "";
+  return `Class ${cls}${sec}`;
+};
+
 export default function AdmitCardSection({
   students,
   onFetchMonthlyFees
@@ -80,10 +88,15 @@ export default function AdmitCardSection({
   const [selectedClass, setSelectedClass] = useState("UKG");
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const [permissionMap, setPermissionMap] = useState({});
   const [savingPermission, setSavingPermission] = useState(false);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 2200);
+  };
 
   const filteredStudents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -124,6 +137,11 @@ export default function AdmitCardSection({
       id: docSnap.id,
       ...docSnap.data()
     }));
+    data.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
     setExams(data);
     if (!selectedExamId && data[0]) {
       setSelectedExamId(data[0].id);
@@ -140,8 +158,26 @@ export default function AdmitCardSection({
         ...row,
         date: toIsoDate(row.date)
       }));
-      map[data.className] = rows;
+      const className = data.className || normalizeClassKey(docSnap.id);
+      map[className] = rows;
     });
+
+    // Backward compatibility: ensure keys exist for all classes when older docs
+    // were saved with non-normalized class names.
+    for (const className of classOptions) {
+      if (map[className]) continue;
+      const legacyDoc = await getDoc(
+        doc(db, "exams", examId, "schedules", className)
+      );
+      if (legacyDoc.exists()) {
+        const rows = (legacyDoc.data()?.rows || []).map((row) => ({
+          ...row,
+          date: toIsoDate(row.date)
+        }));
+        map[className] = rows;
+      }
+    }
+
     setScheduleByClass(map);
     setScheduleDrafts(map);
   };
@@ -154,7 +190,10 @@ export default function AdmitCardSection({
     const map = {};
     snap.docs.forEach((docSnap) => {
       const data = docSnap.data();
-      map[docSnap.id] = !!data.allowDownload;
+      map[docSnap.id] = {
+        allowDownload: !!data.allowDownload,
+        issued: !!data.issued
+      };
     });
     setPermissionMap(map);
   };
@@ -171,7 +210,7 @@ export default function AdmitCardSection({
       setSession(exam.session || "2025-2026");
       setReportingTime(exam.reportingTime || "8:30 to 12:30");
       setExamCenter(exam.examCenter || "Flux Baby World Campus");
-      setExamDate(exam.examDate || "");
+      setExamDate(toIsoDate(exam.examDate || ""));
       setExamTime(exam.examTime || "");
     }
     fetchSchedules(selectedExamId);
@@ -179,40 +218,62 @@ export default function AdmitCardSection({
   }, [selectedExamId, exams]);
 
   const handleCreateExam = async () => {
+    if (!examName || !session || !examDate || !examTime || !examCenter) {
+      showToast("Fill all exam fields before creating a new exam.", "error");
+      return;
+    }
     setSavingExam(true);
-    const docRef = await addDoc(collection(db, "exams"), {
-      examName,
-      session,
-      reportingTime,
-      examCenter,
-      examDate,
-      examTime,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    setSelectedExamId(docRef.id);
-    fetchExams();
-    setSavingExam(false);
-  };
-
-  const handleSaveExam = async () => {
-    if (!selectedExamId) return;
-    setSavingExam(true);
-    await setDoc(
-      doc(db, "exams", selectedExamId),
-      {
+    try {
+      const docRef = await addDoc(collection(db, "exams"), {
         examName,
         session,
         reportingTime,
         examCenter,
-        examDate,
+        examDate: toIsoDate(examDate),
         examTime,
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-    fetchExams();
-    setSavingExam(false);
+      });
+      setSelectedExamId(docRef.id);
+      await fetchExams();
+      showToast("Exam created successfully.");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not create exam. Please try again.", "error");
+    } finally {
+      setSavingExam(false);
+    }
+  };
+
+  const handleSaveExam = async () => {
+    if (!selectedExamId) return;
+    if (!examName || !session || !examDate || !examTime || !examCenter) {
+      showToast("Fill all exam fields before saving.", "error");
+      return;
+    }
+    setSavingExam(true);
+    try {
+      await setDoc(
+        doc(db, "exams", selectedExamId),
+        {
+          examName,
+          session,
+          reportingTime,
+          examCenter,
+          examDate: toIsoDate(examDate),
+          examTime,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      await fetchExams();
+      showToast("Exam updated successfully.");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not save exam. Please try again.", "error");
+    } finally {
+      setSavingExam(false);
+    }
   };
 
   const rowsForClass = scheduleDrafts[selectedClass] || [];
@@ -249,52 +310,118 @@ export default function AdmitCardSection({
 
   const saveSchedule = async () => {
     if (!selectedExamId) return;
-    setSavingSchedule(true);
     const rows = scheduleDrafts[selectedClass] || [];
-    await setDoc(
-      doc(db, "exams", selectedExamId, "schedules", selectedClass),
-      {
-        className: selectedClass,
-        rows,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
+    const hasInvalidRows = rows.some(
+      (row) => !row.day || !toIsoDate(row.date) || !row.subject?.trim()
     );
-    await fetchSchedules(selectedExamId);
-    setSavingSchedule(false);
-    setScheduleSaved(true);
-    setTimeout(() => setScheduleSaved(false), 2000);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2200);
+    if (!rows.length || hasInvalidRows) {
+      showToast("Each row needs day, date and subject.", "error");
+      return;
+    }
+    setSavingSchedule(true);
+    try {
+      await setDoc(
+        doc(db, "exams", selectedExamId, "schedules", selectedClass),
+        {
+          className: selectedClass,
+          rows: rows.map((row) => ({
+            day: row.day,
+            date: toIsoDate(row.date),
+            subject: row.subject.trim()
+          })),
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      await fetchSchedules(selectedExamId);
+      setScheduleSaved(true);
+      setTimeout(() => setScheduleSaved(false), 2000);
+      showToast("Timetable saved.");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not save timetable. Please try again.", "error");
+    } finally {
+      setSavingSchedule(false);
+    }
   };
 
   const togglePermission = async (studentId, allowDownload) => {
     if (!selectedExamId) return;
     setSavingPermission(true);
-    await setDoc(
-      doc(db, "exams", selectedExamId, "permissions", studentId),
-      {
-        allowDownload,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-    setPermissionMap((prev) => ({ ...prev, [studentId]: allowDownload }));
-    setSavingPermission(false);
+    try {
+      await setDoc(
+        doc(db, "exams", selectedExamId, "permissions", studentId),
+        {
+          allowDownload,
+          issued: permissionMap[studentId]?.issued || false,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPermissionMap((prev) => ({
+        ...prev,
+        [studentId]: {
+          allowDownload,
+          issued: prev[studentId]?.issued || false
+        }
+      }));
+      showToast(
+        allowDownload ? "Download permission enabled." : "Download permission removed."
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("Could not update permission.", "error");
+    } finally {
+      setSavingPermission(false);
+    }
+  };
+
+  const issueAdmitCard = async (studentId) => {
+    if (!selectedExamId || !studentId) return;
+    setSavingPermission(true);
+    try {
+      await setDoc(
+        doc(db, "exams", selectedExamId, "permissions", studentId),
+        {
+          issued: true,
+          issuedAt: serverTimestamp(),
+          allowDownload: permissionMap[studentId]?.allowDownload || false,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPermissionMap((prev) => ({
+        ...prev,
+        [studentId]: {
+          allowDownload: prev[studentId]?.allowDownload || false,
+          issued: true
+        }
+      }));
+      showToast("Admit card issued for this student.");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not issue admit card.", "error");
+    } finally {
+      setSavingPermission(false);
+    }
   };
 
   const selectedFees = selectedId ? feeCache[selectedId] || [] : [];
   const totalDue = getTotalDue(selectedFees);
   const isPaid = totalDue <= 0;
-  const allowDownload = permissionMap[selectedId] || false;
-  const canDownload = isPaid || allowDownload;
+  const allowDownload = permissionMap[selectedId]?.allowDownload || false;
+  const issued = permissionMap[selectedId]?.issued || false;
+  const canDownload = issued && (isPaid || allowDownload);
   const scheduleRows = selectedStudent
     ? scheduleByClass[normalizeClassKey(selectedStudent.class)] || []
     : [];
 
   const downloadAdmitCard = (student) => {
     if (!student) return;
-    const status = canDownload ? "PAID" : "UNPAID";
+    if (!canDownload) {
+      showToast("Clear due or enable admin permission to download.", "error");
+      return;
+    }
     const win = window.open("", "_blank");
     if (!win) return;
     const examDateFormatted = formatDate(examDate);
@@ -357,7 +484,7 @@ export default function AdmitCardSection({
                     </div>
                     <div class="field">
                       <div class="label">Class</div>
-                      <div class="value">${student.class || "--"}</div>
+                      <div class="value">${student.class || "--"}${student.section ? ` (${student.section})` : ""}</div>
                     </div>
                     <div class="field">
                       <div class="label">Roll No</div>
@@ -445,9 +572,13 @@ export default function AdmitCardSection({
 
   return (
     <div className="card card-pad mt-8">
-      {showToast && (
-        <div className="fixed top-24 right-4 z-[60] bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-lg animate-[toastInOut_2.2s_ease-in-out]">
-          Saved ✓
+      {toast && (
+        <div
+          className={`fixed top-24 right-4 z-[60] text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-lg animate-[toastInOut_2.2s_ease-in-out] ${
+            toast.type === "error" ? "bg-rose-600" : "bg-emerald-600"
+          }`}
+        >
+          {toast.message}
         </div>
       )}
       <button
@@ -609,7 +740,7 @@ export default function AdmitCardSection({
                   </button>
                 ))}
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-3 max-h-[340px] overflow-auto pr-1">
                 {rowsForClass.map((row, index) => (
                   <div
                     key={`${row.day}-${index}`}
@@ -709,7 +840,7 @@ export default function AdmitCardSection({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="mt-3 w-full h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <div className="mt-3 max-h-64 overflow-auto space-y-2">
+              <div className="mt-3 max-h-[300px] overflow-auto space-y-2 pr-1">
                 {filteredStudents.map((student) => (
                   <button
                     key={student.id}
@@ -726,7 +857,7 @@ export default function AdmitCardSection({
                         {student.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Class {student.class} | Roll {student.rollNo}
+                        {formatClassSection(student)} | Roll {student.rollNo}
                       </p>
                     </div>
                     <span className="text-xs text-slate-400">Select</span>
@@ -747,7 +878,7 @@ export default function AdmitCardSection({
                   Select a student to preview admit card.
                 </div>
               ) : (
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-4 max-h-[620px] overflow-auto pr-1">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     {selectedStudent.photoUrl ? (
                       <img
@@ -768,7 +899,7 @@ export default function AdmitCardSection({
                         {selectedStudent.name}
                       </p>
                       <p className="text-sm text-slate-500">
-                        Class {selectedStudent.class} | Roll {selectedStudent.rollNo}
+                        {formatClassSection(selectedStudent)} | Roll {selectedStudent.rollNo}
                       </p>
                     </div>
                   </div>
@@ -873,6 +1004,14 @@ export default function AdmitCardSection({
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       type="button"
+                      onClick={() => issueAdmitCard(selectedId)}
+                      disabled={savingPermission || issued}
+                      className="flex-1 border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60"
+                    >
+                      {issued ? "Admit Card Issued" : "Issue Admit Card"}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => downloadAdmitCard(selectedStudent)}
                       disabled={!canDownload}
                       className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
@@ -886,6 +1025,12 @@ export default function AdmitCardSection({
                       Pay Now (Demo)
                     </button>
                   </div>
+
+                  {!issued && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                      Admin has not issued admit card yet.
+                    </div>
+                  )}
 
                   {!isPaid && (
                     <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -921,3 +1066,4 @@ export default function AdmitCardSection({
     </div>
   );
 }
+

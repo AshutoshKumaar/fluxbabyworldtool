@@ -7,6 +7,8 @@ export default function AddStudentCard({
   setName,
   studentClass,
   setStudentClass,
+  section,
+  setSection,
   rollNo,
   setRollNo,
   dob,
@@ -28,6 +30,10 @@ export default function AddStudentCard({
   photoInputKey,
   uploadProgress,
   isUploading,
+  documents,
+  setDocuments,
+  transportMode,
+  setTransportMode,
   parentEmail,
   setParentEmail,
   parentPassword,
@@ -47,6 +53,52 @@ export default function AddStudentCard({
       }
     };
   }, [previewUrl]);
+
+  const documentOptions = [
+    { value: "birth-certificate", label: "Birth Certificate" },
+    { value: "aadhaar", label: "Aadhaar Card" },
+    { value: "transfer-certificate", label: "Transfer Certificate" },
+    { value: "mark-sheet", label: "Previous Marksheet" },
+    { value: "other", label: "Other Document" }
+  ];
+
+  const addDocumentRow = () => {
+    setDocuments((prev) => [...prev, { type: "birth-certificate", file: null }]);
+  };
+
+  const updateDocumentRow = (index, patch) => {
+    setDocuments((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item))
+    );
+  };
+
+  const removeDocumentRow = (index) => {
+    setDocuments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const documentPreviews = useMemo(() => {
+    return documents
+      .map((item, index) => {
+        if (!item?.file) return null;
+        const isImage = item.file.type?.startsWith("image/");
+        return {
+          index,
+          type: item.type,
+          fileName: item.file.name,
+          isImage,
+          previewUrl: isImage ? URL.createObjectURL(item.file) : ""
+        };
+      })
+      .filter(Boolean);
+  }, [documents]);
+
+  useEffect(() => {
+    return () => {
+      documentPreviews.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, [documentPreviews]);
 
   return (
     <div className="card card-pad mb-8 sm:mb-10">
@@ -117,17 +169,35 @@ export default function AddStudentCard({
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
-                placeholder="Class Number / Section *"
+                placeholder="Class *"
                 value={studentClass}
                 onChange={(e) => setStudentClass(e.target.value)}
                 className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <input
+                placeholder="Section (A/B/C)"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input
                 placeholder="Roll No *"
                 value={rollNo}
                 onChange={(e) => setRollNo(e.target.value)}
                 className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <select
+                value={transportMode}
+                onChange={(e) => setTransportMode(e.target.value)}
+                className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="on-foot">On Foot</option>
+                <option value="riksha">Riksha</option>
+                <option value="toto">ToTo</option>
+                <option value="school-van">School Van</option>
+              </select>
             </div>
             <input
               placeholder="Date of Birth *"
@@ -242,23 +312,124 @@ export default function AddStudentCard({
               )}
             </div>
 
-            <input
-              placeholder="Parent Email (Login ID) *"
-              value={parentEmail}
-              onChange={(e) => setParentEmail(e.target.value)}
-              className="w-full h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <input
-              placeholder="Parent Password *"
-              type="password"
-              value={parentPassword}
-              onChange={(e) => setParentPassword(e.target.value)}
-              className="w-full h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <div className="pt-2">
+            <div className="border border-dashed border-slate-300 rounded-2xl p-4 sm:p-5 bg-white max-h-[320px] overflow-auto">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">
+                    Additional Documents
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Upload one or more documents (Birth Certificate, Aadhaar, etc.)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addDocumentRow}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50"
+                >
+                  Add Document
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-3">
+                {documents.map((item, index) => (
+                  <div
+                    key={`doc-${index}`}
+                    className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2"
+                  >
+                    <select
+                      value={item.type}
+                      onChange={(e) =>
+                        updateDocumentRow(index, { type: e.target.value })
+                      }
+                      className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {documentOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="file"
+                      onChange={(e) =>
+                        updateDocumentRow(index, {
+                          file: e.target.files?.[0] || null
+                        })
+                      }
+                      className="h-10 border border-slate-200 rounded-lg px-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentRow(index)}
+                      className="h-10 px-3 rounded-lg border border-rose-200 text-rose-600 text-sm hover:bg-rose-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {documents.length === 0 && (
+                  <p className="text-xs text-slate-500">
+                    No additional documents selected.
+                  </p>
+                )}
+              </div>
+
+              {documentPreviews.length > 0 && (
+                <div className="mt-4 border-t border-slate-200 pt-3">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">
+                    Document Preview
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {documentPreviews.map((item) => (
+                      <div
+                        key={`preview-${item.index}`}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-2"
+                      >
+                        <p className="text-[11px] text-slate-500 mb-1 capitalize">
+                          {(item.type || "document").replaceAll("-", " ")}
+                        </p>
+                        {item.isImage ? (
+                          <img
+                            src={item.previewUrl}
+                            alt={item.fileName}
+                            className="h-24 w-full object-cover rounded-md border"
+                          />
+                        ) : (
+                          <div className="h-24 rounded-md border bg-white flex items-center justify-center text-xs text-slate-500">
+                            Preview not available
+                          </div>
+                        )}
+                        <p className="mt-1 truncate text-[11px] text-slate-600">
+                          {item.fileName}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 sm:p-5 space-y-3">
+              <p className="text-sm font-semibold text-slate-700">
+                Parent Login Credentials
+              </p>
+              <input
+                placeholder="Parent Email (Login ID) *"
+                value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)}
+                className="w-full h-11 sm:h-12 border border-slate-200 bg-white px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <input
+                placeholder="Parent Password *"
+                type="password"
+                value={parentPassword}
+                onChange={(e) => setParentPassword(e.target.value)}
+                className="w-full h-11 sm:h-12 border border-slate-200 bg-white px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
               <button
                 onClick={onAddStudent}
-                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl shadow-lg shadow-indigo-200/50 disabled:opacity-60 transition-all"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl shadow-lg shadow-indigo-200/50 disabled:opacity-60 transition-all"
                 disabled={isUploading}
               >
                 {isUploading ? "Uploading..." : "Create Student & Parent Login"}

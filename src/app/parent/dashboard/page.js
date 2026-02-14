@@ -8,7 +8,8 @@ import {
   getDoc,
   getDocs
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import Navbar from "@/app/components/admin/navbar";
 import AdmitCardPreview from "@/app/components/parents/admit-card-preview";
 import FeeSummary from "@/app/components/parents/fee-summary";
@@ -25,8 +26,19 @@ const formatDate = (value) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+const getFeeDue = (fee) => {
+  if (fee?.dueFees !== undefined && fee?.dueFees !== null) {
+    return Number(fee.dueFees || 0);
+  }
+  const tuition = Number(fee?.totalFees || 0);
+  const transport = Number(fee?.transportFee || 0);
+  const net = Number(fee?.netTotalFees || tuition + transport);
+  const paid = Number(fee?.paidFees || 0);
+  return net - paid;
+};
+
 const getTotalDue = (fees = []) =>
-  fees.reduce((sum, fee) => sum + Number(fee.dueFees || 0), 0);
+  fees.reduce((sum, fee) => sum + getFeeDue(fee), 0);
 
 const normalizeClassKey = (value) => {
   if (!value) return "";
@@ -38,18 +50,20 @@ const normalizeClassKey = (value) => {
 };
 
 function ParentDashboard() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
   const [fees, setFees] = useState([]);
   const [exam, setExam] = useState(null);
   const [scheduleRows, setScheduleRows] = useState([]);
   const [allowDownload, setAllowDownload] = useState(false);
+  const [issued, setIssued] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        setError("Please log in to access your dashboard.");
+        router.replace("/login");
         setLoading(false);
         return;
       }
@@ -57,6 +71,13 @@ function ParentDashboard() {
       try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         const userData = userDoc.data();
+        if (userData?.role !== "parent") {
+          setError("Only parent accounts can access this dashboard.");
+          await signOut(auth);
+          router.replace("/login");
+          setLoading(false);
+          return;
+        }
         if (!userData?.studentId) {
           setError("Student profile not linked.");
           setLoading(false);
@@ -66,6 +87,11 @@ function ParentDashboard() {
         const studentDoc = await getDoc(
           doc(db, "students", userData.studentId)
         );
+        if (!studentDoc.exists()) {
+          setError("Student profile not found.");
+          setLoading(false);
+          return;
+        }
         setStudent({ id: studentDoc.id, ...studentDoc.data() });
 
         const feesSnap = await getDocs(
@@ -106,6 +132,7 @@ function ParentDashboard() {
             doc(db, "exams", latestExam.id, "permissions", userData.studentId)
           );
           setAllowDownload(!!permissionDoc.data()?.allowDownload);
+          setIssued(!!permissionDoc.data()?.issued);
         }
 
         setLoading(false);
@@ -117,19 +144,23 @@ function ParentDashboard() {
     });
 
     return () => unsub();
-  }, []);
+  }, [router]);
 
-  const totalDue = useMemo(() => getTotalDue(fees), [fees]);
+  const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
-  const canDownload = isPaid || allowDownload;
+  const canDownload = issued && (isPaid || allowDownload);
+  const blockReason = !issued
+    ? "Admit card is not issued by admin yet."
+    : !isPaid && !allowDownload
+      ? "Your admit card could not be downloaded without clearing the due."
+      : "";
 
   const handleDownload = () => {
     if (!student || !exam) return;
     if (!canDownload) {
-      alert("Your admit card could not be downloaded without clearing the due.");
+      alert(blockReason || "Admit card download is not available.");
       return;
     }
-    const status = canDownload ? "PAID" : "UNPAID";
     const rows = scheduleRows
       .map(
         (row) => `
@@ -189,7 +220,7 @@ function ParentDashboard() {
                     </div>
                     <div class="field">
                       <div class="label">Class</div>
-                      <div class="value">${student.class || "--"}</div>
+                      <div class="value">${student.class || "--"}${student.section ? ` (${student.section})` : ""}</div>
                     </div>
                     <div class="field">
                       <div class="label">Roll No</div>
@@ -313,7 +344,23 @@ function ParentDashboard() {
   }
 
   if (error) {
-    return <div className="p-6 text-red-600">{error}</div>;
+    return (
+      <div className="min-h-screen bg-slate-100">
+        <Navbar role="parent" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="card-soft p-6 text-center">
+            <p className="text-rose-600 font-semibold">{error}</p>
+            <button
+              type="button"
+              onClick={() => router.replace("/login")}
+              className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -338,6 +385,7 @@ function ParentDashboard() {
               exam={exam}
               scheduleRows={scheduleRows}
               canDownload={canDownload}
+              blockReason={blockReason}
               onDownload={handleDownload}
               formatDate={formatDate}
             />
@@ -347,6 +395,7 @@ function ParentDashboard() {
                 totalDue={totalDue}
                 isPaid={isPaid}
                 canDownload={canDownload}
+                blockReason={blockReason}
                 onDownload={handleDownload}
                 onPayNow={handlePayNow}
               />

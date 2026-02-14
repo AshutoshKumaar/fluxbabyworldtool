@@ -1,41 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, auth, storage } from "../../../lib/firebase";
 import { initializeApp, deleteApp, getApp, getApps } from "firebase/app";
-import {
-  collection,
-  getDoc,
-  getDocs,
-  doc,
-  setDoc,
-  serverTimestamp
-} from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
   signOut
 } from "firebase/auth";
-import {
-  ref,
-  uploadBytes,
-  uploadBytesResumable,
-  getDownloadURL
-} from "firebase/storage";
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { collection, doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { auth, db, storage } from "../../../lib/firebase";
 import Navbar from "@/app/components/admin/navbar";
 import AddStudentCard from "@/app/components/admin/add-student-card";
-import StudentsFeesList from "@/app/components/admin/students-fees-list";
-import AdmitCardSection from "@/app/components/admin/admit-card-section";
 
-export default function AdminDashboard() {
+export default function AdminStudentsPage() {
   const router = useRouter();
-  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState("");
 
-  // Student fields
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [section, setSection] = useState("");
@@ -53,20 +37,8 @@ export default function AdminDashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [transportMode, setTransportMode] = useState("on-foot");
-
-  // Parent login fields
   const [parentEmail, setParentEmail] = useState("");
   const [parentPassword, setParentPassword] = useState("");
-
-  // Fetch students
-  const fetchStudents = async () => {
-    const snap = await getDocs(collection(db, "students"));
-    const data = snap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    setStudents(data);
-  };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -74,30 +46,23 @@ export default function AdminDashboard() {
         router.replace("/login");
         return;
       }
-
       try {
         const roleSnap = await getDoc(doc(db, "users", user.uid));
-        const role = roleSnap.data()?.role;
-
-        if (role !== "admin") {
-          setAccessError("Only admin users can access this dashboard.");
+        if (roleSnap.data()?.role !== "admin") {
+          setAccessError("Only admin users can access this page.");
           await signOut(auth);
           return;
         }
-
-        await fetchStudents();
       } catch (err) {
         console.error(err);
-        setAccessError("Failed to verify admin access. Please login again.");
+        setAccessError("Failed to verify admin access.");
       } finally {
         setLoading(false);
       }
     });
-
     return () => unsub();
   }, [router]);
 
-  // Add student + parent login
   const addStudent = async () => {
     if (
       !name ||
@@ -119,8 +84,6 @@ export default function AdminDashboard() {
     }
 
     try {
-      // Create parent auth account using a secondary app so admin session
-      // does not switch to the newly created parent user.
       const secondaryAppName = "secondary-parent-creator";
       const secondaryApp = getApps().some((app) => app.name === secondaryAppName)
         ? getApp(secondaryAppName)
@@ -132,9 +95,7 @@ export default function AdminDashboard() {
         parentEmail,
         parentPassword
       );
-
       const parentUid = parentCred.user.uid;
-
       const studentRef = doc(collection(db, "students"));
       const studentId = studentRef.id;
       let uploadedPhotoUrl = "";
@@ -143,12 +104,8 @@ export default function AdminDashboard() {
       if (photoFile) {
         setIsUploading(true);
         setUploadProgress(0);
-        const fileRef = ref(
-          storage,
-          `students/${studentId}/photo-${Date.now()}-${photoFile.name}`
-        );
+        const fileRef = ref(storage, `students/${studentId}/photo-${Date.now()}-${photoFile.name}`);
         const uploadTask = uploadBytesResumable(fileRef, photoFile);
-
         await new Promise((resolve, reject) => {
           uploadTask.on(
             "state_changed",
@@ -162,7 +119,6 @@ export default function AdminDashboard() {
             () => resolve()
           );
         });
-
         uploadedPhotoUrl = await getDownloadURL(uploadTask.snapshot.ref);
       }
 
@@ -174,14 +130,9 @@ export default function AdminDashboard() {
         );
         await uploadBytes(docRef, item.file);
         const url = await getDownloadURL(docRef);
-        uploadedDocuments.push({
-          type: item.type,
-          fileName: item.file.name,
-          url
-        });
+        uploadedDocuments.push({ type: item.type, fileName: item.file.name, url });
       }
 
-      // Create student
       await setDoc(studentRef, {
         name,
         class: studentClass,
@@ -200,7 +151,6 @@ export default function AdminDashboard() {
         parentUid
       });
 
-      // Create user role doc
       await setDoc(doc(db, "users", parentUid), {
         role: "parent",
         studentId: studentRef.id
@@ -210,9 +160,6 @@ export default function AdminDashboard() {
       await deleteApp(secondaryApp);
 
       alert("Student & Parent login created");
-      fetchStudents();
-
-      // reset
       setName("");
       setStudentClass("");
       setSection("");
@@ -239,105 +186,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchMonthlyFees = async (studentId) => {
-    const snap = await getDocs(
-      collection(db, "fees", studentId, "months")
-    );
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December"
-    ];
-
-    const data = snap.docs.map((docSnap) => {
-      const record = docSnap.data();
-      return {
-        id: docSnap.id,
-        ...record,
-        monthName: monthNames[(record.month || 1) - 1] || "Month"
-      };
-    });
-
-    return data.sort((a, b) => {
-      if (a.year !== b.year) {
-        return b.year - a.year;
-      }
-      return b.month - a.month;
-    });
-  };
-
-  const saveMonthlyFees = async (studentId, input) => {
-    const { month, year, totalFees, paidFees, transportFee } = input || {};
-
-    if (
-      !month ||
-      !year ||
-      totalFees === "" ||
-      totalFees === null ||
-      totalFees === undefined ||
-      paidFees === "" ||
-      paidFees === null ||
-      paidFees === undefined
-    ) {
-      alert("Enter month, year, tuition and paid fees");
-      return;
-    }
-
-    const transport = Number(transportFee || 0);
-    const netTotalFees = Number(totalFees) + transport;
-    const dueFees = netTotalFees - Number(paidFees);
-    const monthId = `${year}-${String(month).padStart(2, "0")}`;
-
-    await setDoc(
-      doc(db, "fees", studentId, "months", monthId),
-      {
-        month: Number(month),
-        year: Number(year),
-        totalFees: Number(totalFees),
-        transportFee: transport,
-        netTotalFees,
-        paidFees: Number(paidFees),
-        dueFees,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
         <Navbar role="admin" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col items-center justify-center gap-4 py-16">
-            <div className="relative">
-              <div className="h-16 w-16 rounded-full border-4 border-indigo-200" />
-              <div className="absolute inset-0 h-16 w-16 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-semibold text-slate-800">
-                Loading admin dashboard
-              </p>
-              <p className="text-sm text-slate-500">
-                Fetching students and fees...
-              </p>
-            </div>
-            <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-              <div className="card-soft h-28 animate-pulse" />
-              <div className="card-soft h-28 animate-pulse" />
-              <div className="card-soft h-36 animate-pulse sm:col-span-2" />
-            </div>
-          </div>
-        </div>
       </div>
     );
   }
@@ -349,13 +201,6 @@ export default function AdminDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="card-soft p-6 text-center">
             <p className="text-rose-600 font-semibold">{accessError}</p>
-            <button
-              type="button"
-              onClick={() => router.replace("/login")}
-              className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-            >
-              Back to Login
-            </button>
           </div>
         </div>
       </div>
@@ -367,9 +212,8 @@ export default function AdminDashboard() {
       <Navbar role="admin" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-indigo-700 mb-6">
-          Admin Dashboard - Flux Baby World
+          Students - Flux Baby World
         </h1>
-
         <AddStudentCard
           name={name}
           setName={setName}
@@ -408,18 +252,8 @@ export default function AdminDashboard() {
           setParentPassword={setParentPassword}
           onAddStudent={addStudent}
         />
-
-        <StudentsFeesList
-          students={students}
-          onFetchMonthlyFees={fetchMonthlyFees}
-          onSaveMonthlyFees={saveMonthlyFees}
-        />
-
-        <AdmitCardSection
-          students={students}
-          onFetchMonthlyFees={fetchMonthlyFees}
-        />
       </div>
     </div>
   );
 }
+
