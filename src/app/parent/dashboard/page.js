@@ -51,6 +51,13 @@ const normalizeClassKey = (value) => {
   return String(value).trim();
 };
 
+const makeUpiRefId = () => {
+  // Keep short and alphanumeric for strict UPI apps (Paytm etc.)
+  const timePart = Date.now().toString().slice(-8);
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `FBW${timePart}${randomPart}`.slice(0, 24);
+};
+
 function ParentDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -315,7 +322,7 @@ function ParentDashboard() {
     const upiId = "7549298707@ibl";
     const payeeName = "Anshu Kumar";
     const amount = totalDue > 0 ? totalDue : 1;
-    const tr = `FBW-${student?.id || "STD"}-${Date.now()}`;
+    const tr = makeUpiRefId();
     const tn = `School fee ${student?.name || ""} ${exam?.session || ""}`.trim();
     const url = `upi://pay?pa=${encodeURIComponent(
       upiId
@@ -334,7 +341,7 @@ function ParentDashboard() {
     }
     setPaymentSubmitting(true);
     try {
-      const tr = `FBW-${student.id}-${Date.now()}`;
+      const tr = makeUpiRefId();
       const tn = `School fee ${student.name || ""} ${exam.session || ""}`.trim();
       const request = {
         utr,
