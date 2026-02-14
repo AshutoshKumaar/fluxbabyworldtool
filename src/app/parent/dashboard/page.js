@@ -6,7 +6,9 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs
+  getDocs,
+  serverTimestamp,
+  setDoc
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -58,6 +60,9 @@ function ParentDashboard() {
   const [scheduleRows, setScheduleRows] = useState([]);
   const [allowDownload, setAllowDownload] = useState(false);
   const [issued, setIssued] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState(null);
+  const [utrInput, setUtrInput] = useState("");
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -133,6 +138,7 @@ function ParentDashboard() {
           );
           setAllowDownload(!!permissionDoc.data()?.allowDownload);
           setIssued(!!permissionDoc.data()?.issued);
+          setPaymentRequest(permissionDoc.data()?.paymentRequest || null);
         }
 
         setLoading(false);
@@ -148,9 +154,12 @@ function ParentDashboard() {
 
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
-  const canDownload = issued && (isPaid || allowDownload);
+  const paymentVerified = paymentRequest?.status === "verified";
+  const canDownload = issued && (isPaid || allowDownload || paymentVerified);
   const blockReason = !issued
     ? "Admit card is not issued by admin yet."
+    : paymentRequest?.status === "submitted"
+      ? "Payment submitted. Waiting for admin verification."
     : !isPaid && !allowDownload
       ? "Your admit card could not be downloaded without clearing the due."
       : "";
@@ -306,12 +315,52 @@ function ParentDashboard() {
     const upiId = "7549298707@ibl";
     const payeeName = "Anshu Kumar";
     const amount = totalDue > 0 ? totalDue : 1;
+    const tr = `FBW-${student?.id || "STD"}-${Date.now()}`;
+    const tn = `School fee ${student?.name || ""} ${exam?.session || ""}`.trim();
     const url = `upi://pay?pa=${encodeURIComponent(
       upiId
     )}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(
       amount
-    )}&cu=INR`;
+    )}&cu=INR&tr=${encodeURIComponent(tr)}&tn=${encodeURIComponent(tn)}`;
     window.open(url, "_blank");
+  };
+
+  const handleSubmitPaymentRequest = async () => {
+    if (!student?.id || !exam?.id) return;
+    const utr = utrInput.trim();
+    if (utr.length < 8) {
+      alert("Enter valid UTR/Ref number.");
+      return;
+    }
+    setPaymentSubmitting(true);
+    try {
+      const tr = `FBW-${student.id}-${Date.now()}`;
+      const tn = `School fee ${student.name || ""} ${exam.session || ""}`.trim();
+      const request = {
+        utr,
+        tr,
+        tn,
+        amount: totalDue > 0 ? totalDue : 0,
+        status: "submitted",
+        submittedAt: serverTimestamp()
+      };
+      await setDoc(
+        doc(db, "exams", exam.id, "permissions", student.id),
+        {
+          paymentRequest: request,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPaymentRequest({ ...request, submittedAt: new Date() });
+      setUtrInput("");
+      alert("Payment proof submitted. Waiting for admin verification.");
+    } catch (err) {
+      console.error(err);
+      alert("Could not submit payment proof. Try again.");
+    } finally {
+      setPaymentSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -399,6 +448,50 @@ function ParentDashboard() {
                 onDownload={handleDownload}
                 onPayNow={handlePayNow}
               />
+              <div className="card-soft">
+                <p className="card-title">Payment Verification</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  After payment, submit UTR/Ref no. Admin will verify and unlock admit card.
+                </p>
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={utrInput}
+                    onChange={(e) => setUtrInput(e.target.value)}
+                    placeholder="Enter UTR / Transaction Ref No"
+                    className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSubmitPaymentRequest}
+                    disabled={paymentSubmitting}
+                    className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {paymentSubmitting ? "Submitting..." : "I Have Paid"}
+                  </button>
+                </div>
+                {paymentRequest?.status && (
+                  <div className="mt-3 text-sm">
+                    <span className="text-slate-500">Status: </span>
+                    <span
+                      className={`font-semibold ${
+                        paymentRequest.status === "verified"
+                          ? "text-emerald-600"
+                          : paymentRequest.status === "submitted"
+                            ? "text-amber-600"
+                            : "text-rose-600"
+                      }`}
+                    >
+                      {paymentRequest.status}
+                    </span>
+                    {paymentRequest.utr && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Last UTR: {paymentRequest.utr}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
               <FeeHistory fees={fees} />
             </div>
           </div>

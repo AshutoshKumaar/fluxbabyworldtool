@@ -192,7 +192,8 @@ export default function AdmitCardSection({
       const data = docSnap.data();
       map[docSnap.id] = {
         allowDownload: !!data.allowDownload,
-        issued: !!data.issued
+        issued: !!data.issued,
+        paymentRequest: data.paymentRequest || null
       };
     });
     setPermissionMap(map);
@@ -354,6 +355,7 @@ export default function AdmitCardSection({
         {
           allowDownload,
           issued: permissionMap[studentId]?.issued || false,
+          paymentRequest: permissionMap[studentId]?.paymentRequest || null,
           updatedAt: serverTimestamp()
         },
         { merge: true }
@@ -362,7 +364,8 @@ export default function AdmitCardSection({
         ...prev,
         [studentId]: {
           allowDownload,
-          issued: prev[studentId]?.issued || false
+          issued: prev[studentId]?.issued || false,
+          paymentRequest: prev[studentId]?.paymentRequest || null
         }
       }));
       showToast(
@@ -386,6 +389,7 @@ export default function AdmitCardSection({
           issued: true,
           issuedAt: serverTimestamp(),
           allowDownload: permissionMap[studentId]?.allowDownload || false,
+          paymentRequest: permissionMap[studentId]?.paymentRequest || null,
           updatedAt: serverTimestamp()
         },
         { merge: true }
@@ -394,7 +398,8 @@ export default function AdmitCardSection({
         ...prev,
         [studentId]: {
           allowDownload: prev[studentId]?.allowDownload || false,
-          issued: true
+          issued: true,
+          paymentRequest: prev[studentId]?.paymentRequest || null
         }
       }));
       showToast("Admit card issued for this student.");
@@ -406,11 +411,59 @@ export default function AdmitCardSection({
     }
   };
 
+  const verifyPaymentRequest = async (studentId, status) => {
+    if (!selectedExamId || !studentId) return;
+    const request = permissionMap[studentId]?.paymentRequest;
+    if (!request) return;
+    setSavingPermission(true);
+    try {
+      await setDoc(
+        doc(db, "exams", selectedExamId, "permissions", studentId),
+        {
+          paymentRequest: {
+            ...request,
+            status,
+            reviewedAt: serverTimestamp()
+          },
+          allowDownload:
+            status === "verified"
+              ? true
+              : permissionMap[studentId]?.allowDownload || false,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPermissionMap((prev) => ({
+        ...prev,
+        [studentId]: {
+          ...prev[studentId],
+          allowDownload:
+            status === "verified" ? true : prev[studentId]?.allowDownload || false,
+          paymentRequest: {
+            ...request,
+            status
+          }
+        }
+      }));
+      showToast(
+        status === "verified"
+          ? "Payment verified. Download unlocked."
+          : "Payment request marked as rejected."
+      );
+    } catch (err) {
+      console.error(err);
+      showToast("Could not update payment request.", "error");
+    } finally {
+      setSavingPermission(false);
+    }
+  };
+
   const selectedFees = selectedId ? feeCache[selectedId] || [] : [];
   const totalDue = getTotalDue(selectedFees);
   const isPaid = totalDue <= 0;
   const allowDownload = permissionMap[selectedId]?.allowDownload || false;
   const issued = permissionMap[selectedId]?.issued || false;
+  const paymentRequest = permissionMap[selectedId]?.paymentRequest || null;
   const canDownload = issued && (isPaid || allowDownload);
   const scheduleRows = selectedStudent
     ? scheduleByClass[normalizeClassKey(selectedStudent.class)] || []
@@ -1044,6 +1097,52 @@ export default function AdmitCardSection({
                       />
                       Allow download for this student (admin permission)
                     </label>
+                  )}
+
+                  {paymentRequest && (
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-sm font-semibold text-slate-800">
+                        Parent Payment Request
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        UTR: {paymentRequest.utr || "--"} | Amount: Rs{" "}
+                        {paymentRequest.amount ?? 0}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Status:{" "}
+                        <span
+                          className={`font-semibold ${
+                            paymentRequest.status === "verified"
+                              ? "text-emerald-600"
+                              : paymentRequest.status === "submitted"
+                                ? "text-amber-600"
+                                : "text-rose-600"
+                          }`}
+                        >
+                          {paymentRequest.status || "submitted"}
+                        </span>
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => verifyPaymentRequest(selectedId, "verified")}
+                          disabled={
+                            savingPermission || paymentRequest.status === "verified"
+                          }
+                          className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                        >
+                          Verify Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => verifyPaymentRequest(selectedId, "rejected")}
+                          disabled={savingPermission}
+                          className="px-3 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
