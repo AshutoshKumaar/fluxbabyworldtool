@@ -4,7 +4,8 @@ export default function FeeSummary({
   canDownload,
   blockReason,
   onDownload,
-  onPayNow
+  onPayNow,
+  onShowQr
 }) {
   return (
     <div className="card-soft">
@@ -45,6 +46,13 @@ export default function FeeSummary({
           className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
         >
           Pay Now (UPI)
+        </button>
+        <button
+          type="button"
+          onClick={onShowQr}
+          className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50"
+        >
+          Pay via QR
         </button>
       </div>
     </div>

@@ -70,6 +70,7 @@ function ParentDashboard() {
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [utrInput, setUtrInput] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -332,6 +333,23 @@ function ParentDashboard() {
     window.open(url, "_blank");
   };
 
+  const buildUpiUrl = () => {
+    const upiId = "7549298707@ibl";
+    const payeeName = "Anshu Kumar";
+    const amount = totalDue > 0 ? totalDue : 1;
+    const tr = makeUpiRefId();
+    const tn = `School fee ${student?.name || ""} ${exam?.session || ""}`.trim();
+    return `upi://pay?pa=${encodeURIComponent(
+      upiId
+    )}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(
+      amount
+    )}&cu=INR&tr=${encodeURIComponent(tr)}&tn=${encodeURIComponent(tn)}`;
+  };
+
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
+    buildUpiUrl()
+  )}`;
+
   const handleSubmitPaymentRequest = async () => {
     if (!student?.id || !exam?.id) return;
     const utr = utrInput.trim();
@@ -420,6 +438,7 @@ function ParentDashboard() {
   }
 
   return (
+    <>
     <div className="bg-slate-100 min-h-screen">
       <Navbar role="parent" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -454,6 +473,7 @@ function ParentDashboard() {
                 blockReason={blockReason}
                 onDownload={handleDownload}
                 onPayNow={handlePayNow}
+                onShowQr={() => setShowQr(true)}
               />
               <div className="card-soft">
                 <p className="card-title">Payment Verification</p>
@@ -505,7 +525,40 @@ function ParentDashboard() {
         )}
       </div>
     </div>
+    {showQr && (
+      <div className="fixed inset-0 z-50 bg-slate-900/50 p-4 flex items-center justify-center">
+        <div className="w-full max-w-sm bg-white rounded-2xl p-4 shadow-xl">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-slate-800">Scan QR to Pay</p>
+            <button
+              type="button"
+              onClick={() => setShowQr(false)}
+              className="text-slate-500 hover:text-slate-700 text-lg leading-none"
+            >
+              x
+            </button>
+          </div>
+          <img
+            src={qrImageUrl}
+            alt="UPI QR"
+            className="mx-auto h-64 w-64 rounded-lg border"
+          />
+          <p className="mt-3 text-xs text-slate-500 text-center">
+            Amount: Rs {totalDue > 0 ? totalDue : 1}
+          </p>
+          <a
+            href={qrImageUrl}
+            download="fee-payment-qr.png"
+            className="mt-3 block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold"
+          >
+            Download QR
+          </a>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
 export default ParentDashboard;
+
