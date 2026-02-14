@@ -303,8 +303,8 @@ function ParentDashboard() {
   };
 
   const handlePayNow = () => {
-    const upiId = "7079666741-0@airtel";
-    const payeeName = "Flux Baby World";
+    const upiId = "7549298707@ibl";
+    const payeeName = "Anshu Kumar";
     const amount = totalDue > 0 ? totalDue : 1;
     const url = `upi://pay?pa=${encodeURIComponent(
       upiId
