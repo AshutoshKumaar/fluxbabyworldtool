@@ -111,6 +111,7 @@ export default function LoginPage() {
         <input
           type="email"
           value={email}
+          placeholder={isParent ? "Enter parent email" : "Enter admin email"}
           className="w-full mt-1 mb-4 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -120,6 +121,7 @@ export default function LoginPage() {
         <input
           type="password"
           value={password}
+          placeholder="Enter password"
           className="w-full mt-1 mb-6 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
           onChange={(e) => setPassword(e.target.value)}
         />

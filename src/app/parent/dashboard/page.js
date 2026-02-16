@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { auth, db } from "../../../lib/firebase";
 import {
   collection,
@@ -73,6 +74,7 @@ function ParentDashboard() {
   const [utrInput, setUtrInput] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [showQr, setShowQr] = useState(false);
+  const [qrDownloading, setQrDownloading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -328,20 +330,6 @@ function ParentDashboard() {
     window.open(waUrl, "_blank");
   };
 
-  const handlePayNow = () => {
-    const upiId = "7549298707@ibl";
-    const payeeName = "Anshu Kumar";
-    const amount = totalDue > 0 ? totalDue : 1;
-    const tr = makeUpiRefId();
-    const tn = `School fee ${student?.name || ""} ${exam?.session || ""}`.trim();
-    const url = `upi://pay?pa=${encodeURIComponent(
-      upiId
-    )}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(
-      amount
-    )}&cu=INR&tr=${encodeURIComponent(tr)}&tn=${encodeURIComponent(tn)}`;
-    window.open(url, "_blank");
-  };
-
   const buildUpiUrl = () => {
     const upiId = "7549298707@ibl";
     const payeeName = "Anshu Kumar";
@@ -355,11 +343,45 @@ function ParentDashboard() {
     buildUpiUrl()
   )}`;
 
+  const handleDownloadQr = async () => {
+    setQrDownloading(true);
+    try {
+      const response = await fetch(qrImageUrl);
+      const blob = await response.blob();
+      const filename = `fee-payment-qr-${student?.rollNo || "student"}.png`;
+      const file = new File([blob], filename, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Fee Payment QR",
+          text: "Scan this QR to pay school fees."
+        });
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      alert("QR downloaded. Check your Downloads/Gallery.");
+    } catch (err) {
+      console.error(err);
+      alert("Could not download QR automatically. Long press on QR image and save.");
+    } finally {
+      setQrDownloading(false);
+    }
+  };
+
   const handleSubmitPaymentRequest = async () => {
     if (!student?.id || !exam?.id) return;
-    const utr = utrInput.trim();
-    if (utr.length < 8) {
-      alert("Enter valid UTR/Ref number.");
+    const utr = utrInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!/^[A-Z0-9]{8,30}$/.test(utr)) {
+      alert("Enter valid UTR/Ref number (8-30 letters/numbers).");
       return;
     }
     setPaymentSubmitting(true);
@@ -512,7 +534,6 @@ function ParentDashboard() {
                 blockReason={blockReason}
                 onDownload={handleDownload}
                 onPayAtSchool={handlePayAtSchool}
-                onPayNow={handlePayNow}
                 onShowQr={() => setShowQr(true)}
               />
               <div className="card-soft">
@@ -524,8 +545,13 @@ function ParentDashboard() {
                   <input
                     type="text"
                     value={utrInput}
-                    onChange={(e) => setUtrInput(e.target.value)}
-                    placeholder="Enter UTR / Transaction Ref No"
+                    onChange={(e) =>
+                      setUtrInput(
+                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                      )
+                    }
+                    placeholder="Enter UTR / Ref No (Example: 123456789012)"
+                    maxLength={30}
                     className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <button
@@ -537,6 +563,9 @@ function ParentDashboard() {
                     {paymentSubmitting ? "Submitting..." : "I Have Paid"}
                   </button>
                 </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Enter only letters and numbers. No space or special characters.
+                </p>
                 {paymentRequest?.status && (
                   <div className="mt-3 text-sm">
                     <span className="text-slate-500">Status: </span>
@@ -583,20 +612,26 @@ function ParentDashboard() {
               x
             </button>
           </div>
-          <img
+          <Image
             src={qrImageUrl}
             alt="UPI QR"
+            width={256}
+            height={256}
+            unoptimized
             className="mx-auto h-64 w-64 rounded-lg border"
           />
           <p className="mt-3 text-xs text-slate-500 text-center">
             Amount: Rs {totalDue > 0 ? totalDue : 1}
           </p>
           <a
-            href={qrImageUrl}
-            download="fee-payment-qr.png"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              handleDownloadQr();
+            }}
             className="mt-3 block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold"
           >
-            Download QR
+            {qrDownloading ? "Preparing..." : "Download QR"}
           </a>
         </div>
       </div>

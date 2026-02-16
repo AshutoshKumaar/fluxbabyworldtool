@@ -5,7 +5,6 @@ export default function FeeSummary({
   blockReason,
   onDownload,
   onPayAtSchool,
-  onPayNow,
   onShowQr
 }) {
   return (
@@ -48,13 +47,6 @@ export default function FeeSummary({
             className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
           >
             Pay At School
-          </button>
-          <button
-            type="button"
-            onClick={onPayNow}
-            className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
-          >
-            Pay Online (UPI)
           </button>
         </div>
         <button
