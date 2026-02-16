@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import Navbar from "@/app/components/admin/navbar";
+import ParentNavbar from "@/app/components/parents/navbar";
 import AdmitCardPreview from "@/app/components/parents/admit-card-preview";
 import FeeSummary from "@/app/components/parents/fee-summary";
 import FeeHistory from "@/app/components/parents/fee-history";
@@ -59,6 +59,8 @@ const makeUpiRefId = () => {
   return `FBW${timePart}${randomPart}`.slice(0, 24);
 };
 
+const DEMO_UPI_ID = "7079666741-0@airtel";
+const DEMO_PAYEE_NAME = "Flux Baby World";
 const ADMIN_WHATSAPP_NUMBER = "917549298707";
 
 function ParentDashboard() {
@@ -331,8 +333,8 @@ function ParentDashboard() {
   };
 
   const buildUpiUrl = () => {
-    const upiId = "7549298707@ibl";
-    const payeeName = "Anshu Kumar";
+    const upiId = DEMO_UPI_ID;
+    const payeeName = DEMO_PAYEE_NAME;
     // Keep QR minimal for better compatibility with strict UPI apps.
     return `upi://pay?pa=${encodeURIComponent(
       upiId
@@ -452,7 +454,7 @@ function ParentDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <Navbar role="parent" />
+        <ParentNavbar />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex flex-col items-center justify-center gap-4 py-16">
             <div className="relative">
@@ -481,7 +483,7 @@ function ParentDashboard() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <Navbar role="parent" />
+        <ParentNavbar />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="card-soft p-6 text-center">
             <p className="text-rose-600 font-semibold">{error}</p>
@@ -501,7 +503,7 @@ function ParentDashboard() {
   return (
     <>
     <div className="bg-slate-100 min-h-screen">
-      <Navbar role="parent" />
+      <ParentNavbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">
