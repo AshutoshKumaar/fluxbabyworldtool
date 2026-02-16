@@ -58,6 +58,8 @@ const makeUpiRefId = () => {
   return `FBW${timePart}${randomPart}`.slice(0, 24);
 };
 
+const ADMIN_WHATSAPP_NUMBER = "917549298707";
+
 function ParentDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -319,6 +321,13 @@ function ParentDashboard() {
     win.document.close();
   };
 
+  const openAdminWhatsApp = (message) => {
+    const waUrl = `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(
+      message
+    )}`;
+    window.open(waUrl, "_blank");
+  };
+
   const handlePayNow = () => {
     const upiId = "7549298707@ibl";
     const payeeName = "Anshu Kumar";
@@ -336,14 +345,10 @@ function ParentDashboard() {
   const buildUpiUrl = () => {
     const upiId = "7549298707@ibl";
     const payeeName = "Anshu Kumar";
-    const amount = totalDue > 0 ? totalDue : 1;
-    const tr = makeUpiRefId();
-    const tn = `School fee ${student?.name || ""} ${exam?.session || ""}`.trim();
+    // Keep QR minimal for better compatibility with strict UPI apps.
     return `upi://pay?pa=${encodeURIComponent(
       upiId
-    )}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(
-      amount
-    )}&cu=INR&tr=${encodeURIComponent(tr)}&tn=${encodeURIComponent(tn)}`;
+    )}&pn=${encodeURIComponent(payeeName)}&cu=INR`;
   };
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
@@ -379,10 +384,44 @@ function ParentDashboard() {
       );
       setPaymentRequest({ ...request, submittedAt: new Date() });
       setUtrInput("");
+      openAdminWhatsApp(
+        `Hello Admin, I have paid my due amount.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nAmount: Rs ${request.amount}\nUTR: ${utr}\nPlease unlock my admit card.`
+      );
       alert("Payment proof submitted. Waiting for admin verification.");
     } catch (err) {
       console.error(err);
       alert("Could not submit payment proof. Try again.");
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  const handlePayAtSchool = async () => {
+    if (!student?.id || !exam?.id) return;
+    setPaymentSubmitting(true);
+    try {
+      const request = {
+        method: "pay_at_school",
+        amount: totalDue > 0 ? totalDue : 0,
+        status: "submitted",
+        submittedAt: serverTimestamp()
+      };
+      await setDoc(
+        doc(db, "exams", exam.id, "permissions", student.id),
+        {
+          paymentRequest: request,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setPaymentRequest({ ...request, submittedAt: new Date() });
+      openAdminWhatsApp(
+        `Hello Admin, I want to pay at school.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nDue Amount: Rs ${request.amount}\nPlease confirm and unlock my admit card after payment.`
+      );
+      alert("Request sent. Please pay at school and ask admin to verify.");
+    } catch (err) {
+      console.error(err);
+      alert("Could not submit pay-at-school request.");
     } finally {
       setPaymentSubmitting(false);
     }
@@ -472,6 +511,7 @@ function ParentDashboard() {
                 canDownload={canDownload}
                 blockReason={blockReason}
                 onDownload={handleDownload}
+                onPayAtSchool={handlePayAtSchool}
                 onPayNow={handlePayNow}
                 onShowQr={() => setShowQr(true)}
               />
@@ -514,6 +554,11 @@ function ParentDashboard() {
                     {paymentRequest.utr && (
                       <p className="text-xs text-slate-500 mt-1">
                         Last UTR: {paymentRequest.utr}
+                      </p>
+                    )}
+                    {paymentRequest.method && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Method: {paymentRequest.method.replaceAll("_", " ")}
                       </p>
                     )}
                   </div>

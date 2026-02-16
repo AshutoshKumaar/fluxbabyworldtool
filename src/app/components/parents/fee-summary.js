@@ -4,6 +4,7 @@ export default function FeeSummary({
   canDownload,
   blockReason,
   onDownload,
+  onPayAtSchool,
   onPayNow,
   onShowQr
 }) {
@@ -40,13 +41,22 @@ export default function FeeSummary({
         >
           Download Admit Card
         </button>
-        <button
-          type="button"
-          onClick={onPayNow}
-          className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
-        >
-          Pay Now (UPI)
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onPayAtSchool}
+            className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
+          >
+            Pay At School
+          </button>
+          <button
+            type="button"
+            onClick={onPayNow}
+            className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
+          >
+            Pay Online (UPI)
+          </button>
+        </div>
         <button
           type="button"
           onClick={onShowQr}
