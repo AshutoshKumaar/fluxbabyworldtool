@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "../../../lib/firebase";
+import Image from "next/image";
 
 import {
   Menu,
@@ -49,8 +50,8 @@ export default function Navbar({ role = "admin" }) {
             className="flex items-center gap-4 cursor-pointer"
             onClick={() => router.push("/")}
           >
-            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl">
-              F
+            <div className="w-12 h-12 rounded-xl  text-white flex items-center justify-center font-bold text-xl">
+              <Image src="/logo.png" alt="Logo" width={30} height={30} />
             </div>
             <div className="leading-tight">
               <h1 className="text-lg font-extrabold text-slate-800">
