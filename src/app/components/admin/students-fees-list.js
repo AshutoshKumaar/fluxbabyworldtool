@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 const monthOptions = [
   { value: 1, label: "January" },
@@ -20,7 +21,8 @@ const monthOptions = [
 export default function StudentsFeesList({
   students,
   onFetchMonthlyFees,
-  onSaveMonthlyFees
+  onSaveMonthlyFees,
+  onUpdateStudent
 }) {
   const today = new Date();
   const defaultMonth = today.getMonth() + 1;
@@ -35,6 +37,26 @@ export default function StudentsFeesList({
   const [savingFees, setSavingFees] = useState({});
   const [feeInputs, setFeeInputs] = useState({});
   const [editModal, setEditModal] = useState(null);
+  const [studentEditModal, setStudentEditModal] = useState(null);
+  const [savingStudent, setSavingStudent] = useState(false);
+  const [docPreview, setDocPreview] = useState(null);
+
+  useEffect(() => {
+    if (!studentEditModal && !editModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [studentEditModal, editModal]);
+
+  useEffect(() => {
+    return () => {
+      if (docPreview?.isObjectUrl) {
+        URL.revokeObjectURL(docPreview.url);
+      }
+    };
+  }, [docPreview]);
 
   const classOptions = useMemo(() => {
     const unique = Array.from(
@@ -201,6 +223,171 @@ export default function StudentsFeesList({
     }
   };
 
+  const openStudentEditModal = (student) => {
+    setStudentEditModal({
+      studentId: student.id,
+      name: student.name || "",
+      class: student.class || "",
+      section: student.section || "",
+      rollNo: student.rollNo || "",
+      dob: student.dob || "",
+      fatherName: student.fatherName || "",
+      motherName: student.motherName || "",
+      gender: student.gender || "",
+      bloodGroup: student.bloodGroup || "",
+      contactNo: student.contactNo || "",
+      address: student.address || "",
+      transportMode: student.transportMode || "on-foot",
+      photoUrl: student.photoUrl || "",
+      photoFile: null,
+      photoPreviewUrl: student.photoUrl || "",
+      photoPreviewIsObjectUrl: false,
+      documents: Array.isArray(student.documents) ? student.documents : [],
+      newDocuments: []
+    });
+  };
+
+  const closeStudentEditModal = () => {
+    if (studentEditModal?.photoPreviewIsObjectUrl && studentEditModal.photoPreviewUrl) {
+      URL.revokeObjectURL(studentEditModal.photoPreviewUrl);
+    }
+    setStudentEditModal(null);
+  };
+
+  const handleStudentPhotoChange = (file) => {
+    setStudentEditModal((prev) => {
+      if (!prev) return prev;
+      if (prev.photoPreviewIsObjectUrl && prev.photoPreviewUrl) {
+        URL.revokeObjectURL(prev.photoPreviewUrl);
+      }
+      if (!file) {
+        return {
+          ...prev,
+          photoFile: null,
+          photoPreviewUrl: prev.photoUrl || "",
+          photoPreviewIsObjectUrl: false
+        };
+      }
+      const objectUrl = URL.createObjectURL(file);
+      return {
+        ...prev,
+        photoFile: file,
+        photoPreviewUrl: objectUrl,
+        photoPreviewIsObjectUrl: true
+      };
+    });
+  };
+
+  const updateStudentModal = (patch) => {
+    setStudentEditModal((prev) => ({ ...prev, ...patch }));
+  };
+
+  const addNewDocRow = () => {
+    setStudentEditModal((prev) => ({
+      ...prev,
+      newDocuments: [...(prev.newDocuments || []), { type: "birth-certificate", file: null }]
+    }));
+  };
+
+  const updateNewDocRow = (index, patch) => {
+    setStudentEditModal((prev) => ({
+      ...prev,
+      newDocuments: (prev.newDocuments || []).map((item, i) =>
+        i === index ? { ...item, ...patch } : item
+      )
+    }));
+  };
+
+  const removeNewDocRow = (index) => {
+    setStudentEditModal((prev) => ({
+      ...prev,
+      newDocuments: (prev.newDocuments || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeExistingDoc = (index) => {
+    setStudentEditModal((prev) => ({
+      ...prev,
+      documents: (prev.documents || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const openDocPreview = ({ url, file, fileName, type }) => {
+    if (!url && !file) return;
+    if (docPreview?.isObjectUrl) {
+      URL.revokeObjectURL(docPreview.url);
+    }
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setDocPreview({
+        url: objectUrl,
+        fileName: fileName || file.name || "Document",
+        type: type || file.type || "",
+        isObjectUrl: true
+      });
+      return;
+    }
+    setDocPreview({
+      url,
+      fileName: fileName || "Document",
+      type: type || "",
+      isObjectUrl: false
+    });
+  };
+
+  const closeDocPreview = () => {
+    if (docPreview?.isObjectUrl) {
+      URL.revokeObjectURL(docPreview.url);
+    }
+    setDocPreview(null);
+  };
+
+  const isImagePreview = (item) => {
+    const name = (item?.fileName || "").toLowerCase();
+    const url = (item?.url || "").toLowerCase();
+    const mime = (item?.type || "").toLowerCase();
+    return (
+      mime.startsWith("image/") ||
+      /\.(jpg|jpeg|png|webp|gif|bmp)$/.test(name) ||
+      /\.(jpg|jpeg|png|webp|gif|bmp)(\?|$)/.test(url)
+    );
+  };
+
+  const isPdfPreview = (item) => {
+    const name = (item?.fileName || "").toLowerCase();
+    const url = (item?.url || "").toLowerCase();
+    const mime = (item?.type || "").toLowerCase();
+    return mime === "application/pdf" || name.endsWith(".pdf") || /\.pdf(\?|$)/.test(url);
+  };
+
+  const saveStudentModal = async () => {
+    if (!studentEditModal || !onUpdateStudent) return;
+    setSavingStudent(true);
+    try {
+      await onUpdateStudent(studentEditModal.studentId, {
+        name: studentEditModal.name,
+        class: studentEditModal.class,
+        section: studentEditModal.section,
+        rollNo: studentEditModal.rollNo,
+        dob: studentEditModal.dob,
+        fatherName: studentEditModal.fatherName,
+        motherName: studentEditModal.motherName,
+        gender: studentEditModal.gender,
+        bloodGroup: studentEditModal.bloodGroup,
+        contactNo: studentEditModal.contactNo,
+        address: studentEditModal.address,
+        transportMode: studentEditModal.transportMode,
+        documents: studentEditModal.documents || []
+      }, studentEditModal.photoFile, studentEditModal.newDocuments || []);
+      closeStudentEditModal();
+    } catch (err) {
+      console.error(err);
+      alert("Could not update student profile.");
+    } finally {
+      setSavingStudent(false);
+    }
+  };
+
   return (
     <div className="card card-pad">
       <button
@@ -251,10 +438,8 @@ export default function StudentsFeesList({
 
       <div
         id="students-fees-panel"
-        className={`overflow-hidden transition-[max-height,opacity,transform] duration-500 ${
-          isOpen
-            ? "max-h-[3000px] opacity-100 translate-y-0"
-            : "max-h-0 opacity-0 -translate-y-2"
+        className={`overflow-hidden transition-[max-height,opacity] duration-500 ${
+          isOpen ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="mt-5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
@@ -281,7 +466,12 @@ export default function StudentsFeesList({
           </select>
         </div>
 
-      <div className="mt-6 stack-4">
+        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+          <span>Total Students: {students.length}</span>
+          <span>Showing: {filteredStudents.length}</span>
+        </div>
+
+      <div className="mt-6 stack-4 max-h-[72vh] overflow-auto pr-1">
         {filteredStudents.map((student) => {
           const studentFees = feesByStudent[student.id] || [];
           const isExpanded = expandedId === student.id;
@@ -355,16 +545,26 @@ export default function StudentsFeesList({
               </div>
 
               <div
-                className={`overflow-hidden transition-[max-height,opacity,transform] duration-500 ${
-                  isExpanded
-                    ? "max-h-[2000px] opacity-100 translate-y-0"
-                    : "max-h-0 opacity-0 -translate-y-2"
+                className={`overflow-hidden transition-[max-height,opacity] duration-500 ${
+                  isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
                 }`}
               >
                 <div className="mt-5 grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
                   <div className="space-y-4">
-                    <div className="card-title">
-                      Student Details
+                    <div className="flex items-center justify-between">
+                      <div className="card-title">
+                        Student Details
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openStudentEditModal(student);
+                        }}
+                        className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100"
+                      >
+                        Edit Profile
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div className="bg-slate-50 rounded-xl p-3">
@@ -427,6 +627,44 @@ export default function StudentsFeesList({
                         <p className="font-semibold text-slate-800">
                           {student.address || "—"}
                         </p>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 sm:col-span-2">
+                        <p className="text-xs text-slate-500">Documents</p>
+                        {(student.documents || []).length === 0 ? (
+                          <p className="font-semibold text-slate-800">No documents</p>
+                        ) : (
+                          <div className="space-y-2 mt-1">
+                            {(student.documents || []).map((docItem, index) => (
+                              <div
+                                key={`${docItem.url}-${index}`}
+                                className="flex flex-wrap items-center gap-2 text-xs"
+                              >
+                                <a
+                                  href={docItem.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-indigo-700 underline underline-offset-2"
+                                >
+                                  {(docItem.type || "document").replaceAll("-", " ")} -{" "}
+                                  {docItem.fileName || "Open"}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openDocPreview({
+                                      url: docItem.url,
+                                      fileName: docItem.fileName,
+                                      type: docItem.type
+                                    })
+                                  }
+                                  className="px-2 py-0.5 rounded-md border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                >
+                                  Preview
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -626,9 +864,16 @@ export default function StudentsFeesList({
         </div>
       </div>
 
-      {editModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+      {editModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[95] bg-slate-900/45 p-4 overflow-y-auto"
+            onClick={closeEditModal}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl mx-auto my-10"
+              onClick={(e) => e.stopPropagation()}
+            >
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-slate-900">
                 Edit Monthly Fees
@@ -739,8 +984,272 @@ export default function StudentsFeesList({
               </div>
             </div>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
+
+      {studentEditModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[95] bg-slate-900/50 overflow-y-auto p-4"
+            onClick={closeStudentEditModal}
+          >
+            <div
+              className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl max-h-[88vh] overflow-auto mx-auto my-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-900">
+                Edit Student Profile
+              </h3>
+                <button
+                  type="button"
+                  onClick={closeStudentEditModal}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  x
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Student Name</p>
+                <input value={studentEditModal.name} onChange={(e) => updateStudentModal({ name: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Student Name" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Roll No</p>
+                <input value={studentEditModal.rollNo} onChange={(e) => updateStudentModal({ rollNo: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Roll No" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Class</p>
+                <input value={studentEditModal.class} onChange={(e) => updateStudentModal({ class: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Class" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Section</p>
+                <input value={studentEditModal.section} onChange={(e) => updateStudentModal({ section: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Section" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Date of Birth</p>
+                <input type="date" value={studentEditModal.dob} onChange={(e) => updateStudentModal({ dob: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Contact Number</p>
+                <input value={studentEditModal.contactNo} onChange={(e) => updateStudentModal({ contactNo: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Contact Number" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Father Name</p>
+                <input value={studentEditModal.fatherName} onChange={(e) => updateStudentModal({ fatherName: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Father Name" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Mother Name</p>
+                <input value={studentEditModal.motherName} onChange={(e) => updateStudentModal({ motherName: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Mother Name" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Gender</p>
+                <input value={studentEditModal.gender} onChange={(e) => updateStudentModal({ gender: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Gender" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Blood Group</p>
+                <input value={studentEditModal.bloodGroup} onChange={(e) => updateStudentModal({ bloodGroup: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Blood Group" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Transport Mode</p>
+                <select
+                  value={studentEditModal.transportMode}
+                  onChange={(e) => updateStudentModal({ transportMode: e.target.value })}
+                  className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="on-foot">On Foot</option>
+                  <option value="riksha">Riksha</option>
+                  <option value="toto">ToTo</option>
+                  <option value="school-van">School Van</option>
+                </select>
+              </div>
+              <div className="md:col-span-2 rounded-xl border border-slate-200 p-3">
+                <p className="text-xs text-slate-500 mb-2">Profile Photo</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="h-16 w-16 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
+                    {studentEditModal.photoPreviewUrl ? (
+                      <img
+                        src={studentEditModal.photoPreviewUrl}
+                        alt="Student profile preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-slate-400">No photo</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleStudentPhotoChange(e.target.files?.[0] || null)}
+                    className="h-10 border border-slate-200 rounded-lg px-2 text-sm w-full"
+                  />
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <p className="mb-1 text-xs font-semibold text-slate-600">Address</p>
+                <input value={studentEditModal.address} onChange={(e) => updateStudentModal({ address: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Address" />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-800">Existing Documents</p>
+              <div className="mt-2 space-y-2">
+                {(studentEditModal.documents || []).length === 0 && (
+                  <p className="text-xs text-slate-500">No existing documents.</p>
+                )}
+                {(studentEditModal.documents || []).map((docItem, index) => (
+                  <div key={`${docItem.url}-${index}`} className="flex items-center justify-between gap-2 text-xs">
+                    <a href={docItem.url} target="_blank" rel="noreferrer" className="text-indigo-700 underline truncate">
+                      {(docItem.type || "document").replaceAll("-", " ")} - {docItem.fileName || "Open"}
+                    </a>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openDocPreview({
+                            url: docItem.url,
+                            fileName: docItem.fileName,
+                            type: docItem.type
+                          })
+                        }
+                        className="px-2 py-1 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                      >
+                        Preview
+                      </button>
+                      <button type="button" onClick={() => removeExistingDoc(index)} className="px-2 py-1 rounded border border-rose-200 text-rose-600">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-slate-200 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-800">Add New Documents</p>
+                <button type="button" onClick={addNewDocRow} className="px-2 py-1 rounded border border-slate-200 text-xs">
+                  Add
+                </button>
+              </div>
+              <div className="mt-2 space-y-2">
+                {(studentEditModal.newDocuments || []).map((item, index) => (
+                  <div key={`new-doc-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+                    <select
+                      value={item.type}
+                      onChange={(e) => updateNewDocRow(index, { type: e.target.value })}
+                      className="h-10 border border-slate-200 rounded-lg px-3 text-sm"
+                    >
+                      <option value="birth-certificate">Birth Certificate</option>
+                      <option value="aadhaar">Aadhaar Card</option>
+                      <option value="transfer-certificate">Transfer Certificate</option>
+                      <option value="mark-sheet">Previous Marksheet</option>
+                      <option value="other">Other Document</option>
+                    </select>
+                    <input type="file" onChange={(e) => updateNewDocRow(index, { file: e.target.files?.[0] || null })} className="h-10 border border-slate-200 rounded-lg px-2 text-sm" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          item.file &&
+                          openDocPreview({
+                            file: item.file,
+                            fileName: item.file.name,
+                            type: item.file.type
+                          })
+                        }
+                        disabled={!item.file}
+                        className="h-10 px-3 rounded-lg border border-indigo-200 text-indigo-700 text-sm disabled:opacity-40"
+                      >
+                        Preview
+                      </button>
+                      <button type="button" onClick={() => removeNewDocRow(index)} className="h-10 px-3 rounded-lg border border-rose-200 text-rose-600 text-sm">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeStudentEditModal}
+                  className="px-4 py-2 rounded-lg text-sm border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveStudentModal}
+                className="px-4 py-2 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                disabled={savingStudent}
+              >
+                {savingStudent ? "Updating..." : "Update Student"}
+              </button>
+            </div>
+          </div>
+          </div>,
+          document.body
+        )}
+
+      {docPreview &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[110] bg-slate-900/60 p-4 overflow-y-auto"
+            onClick={closeDocPreview}
+          >
+            <div
+              className="w-full max-w-4xl bg-white rounded-2xl shadow-xl mx-auto my-8 p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <p className="text-sm font-semibold text-slate-800 truncate">
+                  {docPreview.fileName || "Document Preview"}
+                </p>
+                <button
+                  type="button"
+                  onClick={closeDocPreview}
+                  className="px-3 py-1 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-2 min-h-[320px] flex items-center justify-center">
+                {isImagePreview(docPreview) ? (
+                  <img
+                    src={docPreview.url}
+                    alt={docPreview.fileName || "Document preview"}
+                    className="max-h-[70vh] w-auto rounded-lg object-contain"
+                  />
+                ) : isPdfPreview(docPreview) ? (
+                  <iframe
+                    src={docPreview.url}
+                    title="Document Preview"
+                    className="h-[70vh] w-full rounded-lg bg-white"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-slate-600 mb-3">
+                      Preview not supported for this file type.
+                    </p>
+                    <a
+                      href={docPreview.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700"
+                    >
+                      Open Document
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -76,7 +76,7 @@ export default function LoginPage() {
             Flux Baby World
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Secure School Examination Portal
+            Secure School Management Portal
           </p>
         </div>
 
@@ -148,7 +148,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-center text-xs text-gray-400 mt-8">
-          © {new Date().getFullYear()} Flux Baby World • All Rights Reserved
+          © {new Date().getFullYear()} Flux Baby World School • All Rights Reserved
         </p>
       </div>
     </div>

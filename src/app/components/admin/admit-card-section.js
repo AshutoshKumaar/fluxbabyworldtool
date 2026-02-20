@@ -13,8 +13,6 @@ import {
   setDoc
 } from "firebase/firestore";
 
-const classOptions = ["UKG", "1", "2", "3", "4"];
-
 const emptyRow = { day: "", date: "", subject: "" };
 const dayOptions = [
   "Monday",
@@ -56,6 +54,19 @@ const normalizeClassKey = (value) => {
   return String(value).trim();
 };
 
+const sortClassKeys = (a, b) => {
+  if (a === "UKG") return -1;
+  if (b === "UKG") return 1;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  const aIsNum = !Number.isNaN(aNum);
+  const bIsNum = !Number.isNaN(bNum);
+  if (aIsNum && bIsNum) return aNum - bNum;
+  if (aIsNum) return -1;
+  if (bIsNum) return 1;
+  return String(a).localeCompare(String(b));
+};
+
 const formatClassSection = (student) => {
   if (!student) return "--";
   const cls = student.class || "--";
@@ -93,6 +104,24 @@ export default function AdmitCardSection({
   const [permissionMap, setPermissionMap] = useState({});
   const [savingPermission, setSavingPermission] = useState(false);
 
+  const classOptions = useMemo(() => {
+    const fromStudents = students
+      .map((student) => normalizeClassKey(student.class))
+      .filter(Boolean);
+    const fromSchedules = Object.keys(scheduleByClass || {}).map((key) =>
+      normalizeClassKey(key)
+    );
+    const fromDrafts = Object.keys(scheduleDrafts || {}).map((key) =>
+      normalizeClassKey(key)
+    );
+    const options = Array.from(
+      new Set([...fromStudents, ...fromSchedules, ...fromDrafts])
+    )
+      .filter(Boolean)
+      .sort(sortClassKeys);
+    return options.length ? options : ["UKG"];
+  }, [students, scheduleByClass, scheduleDrafts]);
+
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 2200);
@@ -109,6 +138,12 @@ export default function AdmitCardSection({
       );
     });
   }, [students, searchTerm]);
+
+  useEffect(() => {
+    if (!classOptions.includes(selectedClass)) {
+      setSelectedClass(classOptions[0]);
+    }
+  }, [classOptions, selectedClass]);
 
   const selectedStudent = useMemo(
     () => students.find((student) => student.id === selectedId),

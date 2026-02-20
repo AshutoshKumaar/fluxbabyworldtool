@@ -313,6 +313,39 @@ export default function AdminDashboard() {
     );
   };
 
+  const updateStudentProfile = async (studentId, profileData, newPhotoFile, newDocuments) => {
+    const nextData = { ...profileData };
+
+    if (newPhotoFile) {
+      const photoRef = ref(
+        storage,
+        `students/${studentId}/photo-${Date.now()}-${newPhotoFile.name}`
+      );
+      await uploadBytes(photoRef, newPhotoFile);
+      nextData.photoUrl = await getDownloadURL(photoRef);
+    }
+
+    const uploadedDocs = [];
+    for (const item of newDocuments || []) {
+      if (!item?.type || !item?.file) continue;
+      const docRef = ref(
+        storage,
+        `students/${studentId}/documents/${item.type}-${Date.now()}-${item.file.name}`
+      );
+      await uploadBytes(docRef, item.file);
+      const url = await getDownloadURL(docRef);
+      uploadedDocs.push({
+        type: item.type,
+        fileName: item.file.name,
+        url
+      });
+    }
+
+    nextData.documents = [...(profileData.documents || []), ...uploadedDocs];
+    await setDoc(doc(db, "students", studentId), nextData, { merge: true });
+    await fetchStudents();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
@@ -413,6 +446,7 @@ export default function AdminDashboard() {
           students={students}
           onFetchMonthlyFees={fetchMonthlyFees}
           onSaveMonthlyFees={saveMonthlyFees}
+          onUpdateStudent={updateStudentProfile}
         />
 
         <AdmitCardSection
