@@ -22,7 +22,8 @@ export default function StudentsFeesList({
   students,
   onFetchMonthlyFees,
   onSaveMonthlyFees,
-  onUpdateStudent
+  onUpdateStudent,
+  onDeleteStudent
 }) {
   const today = new Date();
   const defaultMonth = today.getMonth() + 1;
@@ -39,6 +40,7 @@ export default function StudentsFeesList({
   const [editModal, setEditModal] = useState(null);
   const [studentEditModal, setStudentEditModal] = useState(null);
   const [savingStudent, setSavingStudent] = useState(false);
+  const [deletingStudent, setDeletingStudent] = useState({});
   const [docPreview, setDocPreview] = useState(null);
 
   useEffect(() => {
@@ -388,6 +390,29 @@ export default function StudentsFeesList({
     }
   };
 
+  const handleDeleteStudent = async (student) => {
+    if (!onDeleteStudent || !student?.id) return;
+    setDeletingStudent((prev) => ({ ...prev, [student.id]: true }));
+    try {
+      await onDeleteStudent(student);
+      setFeesByStudent((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
+      setFeeInputs((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
+      if (expandedId === student.id) {
+        setExpandedId(null);
+      }
+    } finally {
+      setDeletingStudent((prev) => ({ ...prev, [student.id]: false }));
+    }
+  };
+
   return (
     <div className="card card-pad">
       <button
@@ -555,16 +580,29 @@ export default function StudentsFeesList({
                       <div className="card-title">
                         Student Details
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openStudentEditModal(student);
-                        }}
-                        className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100"
-                      >
-                        Edit Profile
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openStudentEditModal(student);
+                          }}
+                          className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100"
+                        >
+                          Edit Profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStudent(student);
+                          }}
+                          className="text-xs font-semibold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-lg hover:bg-rose-100 disabled:opacity-60"
+                          disabled={!!deletingStudent[student.id]}
+                        >
+                          {deletingStudent[student.id] ? "Deleting..." : "Delete Student"}
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div className="bg-slate-50 rounded-xl p-3">
@@ -666,6 +704,19 @@ export default function StudentsFeesList({
                           </div>
                         )}
                       </div>
+                      {/* <div className="bg-slate-50 rounded-xl p-3 sm:col-span-2">
+                        <p className="text-xs text-slate-500">Parent Login Credentials</p>
+                        <div className="mt-1 space-y-1">
+                          <p className="text-sm text-slate-800">
+                            <span className="font-semibold">Email:</span>{" "}
+                            {student.parentEmail || "Not available"}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            <span className="font-semibold">Password:</span>{" "}
+                            Not retrievable (security protected)
+                          </p>
+                        </div>
+                      </div> */}
                     </div>
                   </div>
 

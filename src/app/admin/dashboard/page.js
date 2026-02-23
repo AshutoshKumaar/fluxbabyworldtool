@@ -5,6 +5,7 @@ import { db, auth, storage } from "../../../lib/firebase";
 import { initializeApp, deleteApp, getApp, getApps } from "firebase/app";
 import {
   collection,
+  deleteDoc,
   getDoc,
   getDocs,
   doc,
@@ -119,6 +120,7 @@ export default function AdminDashboard() {
     }
 
     try {
+      const normalizedParentEmail = String(parentEmail).trim().toLowerCase();
       // Create parent auth account using a secondary app so admin session
       // does not switch to the newly created parent user.
       const secondaryAppName = "secondary-parent-creator";
@@ -129,7 +131,7 @@ export default function AdminDashboard() {
 
       const parentCred = await createUserWithEmailAndPassword(
         secondaryAuth,
-        parentEmail,
+        normalizedParentEmail,
         parentPassword
       );
 
@@ -197,13 +199,15 @@ export default function AdminDashboard() {
         photoUrl: uploadedPhotoUrl,
         documents: uploadedDocuments,
         transportMode,
-        parentUid
+        parentUid,
+        parentEmail: normalizedParentEmail
       });
 
       // Create user role doc
       await setDoc(doc(db, "users", parentUid), {
         role: "parent",
-        studentId: studentRef.id
+        studentId: studentRef.id,
+        parentEmail: normalizedParentEmail
       });
 
       await secondaryAuth.signOut();
@@ -346,6 +350,38 @@ export default function AdminDashboard() {
     await fetchStudents();
   };
 
+  const deleteStudent = async (student) => {
+    if (!student?.id) return;
+    const ok = window.confirm(
+      `Delete ${student.name || "this student"} permanently? This will remove student profile and fee records.`
+    );
+    if (!ok) return;
+
+    try {
+      const studentId = student.id;
+      const parentUid = student.parentUid;
+
+      const monthsSnap = await getDocs(collection(db, "fees", studentId, "months"));
+      await Promise.all(
+        monthsSnap.docs.map((monthDoc) =>
+          deleteDoc(doc(db, "fees", studentId, "months", monthDoc.id))
+        )
+      );
+
+      await Promise.all([
+        deleteDoc(doc(db, "fees", studentId)),
+        deleteDoc(doc(db, "students", studentId)),
+        parentUid ? deleteDoc(doc(db, "users", parentUid)) : Promise.resolve()
+      ]);
+
+      alert("Student deleted successfully.");
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert("Could not delete student. Please retry.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
@@ -447,6 +483,7 @@ export default function AdminDashboard() {
           onFetchMonthlyFees={fetchMonthlyFees}
           onSaveMonthlyFees={saveMonthlyFees}
           onUpdateStudent={updateStudentProfile}
+          onDeleteStudent={deleteStudent}
         />
 
         <AdmitCardSection
