@@ -70,8 +70,6 @@ function ParentDashboard() {
   const [fees, setFees] = useState([]);
   const [exam, setExam] = useState(null);
   const [scheduleRows, setScheduleRows] = useState([]);
-  const [allowDownload, setAllowDownload] = useState(false);
-  const [issued, setIssued] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [utrInput, setUtrInput] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
@@ -150,8 +148,6 @@ function ParentDashboard() {
           const permissionDoc = await getDoc(
             doc(db, "exams", latestExam.id, "permissions", userData.studentId)
           );
-          setAllowDownload(!!permissionDoc.data()?.allowDownload);
-          setIssued(!!permissionDoc.data()?.issued);
           setPaymentRequest(permissionDoc.data()?.paymentRequest || null);
         }
 
@@ -168,15 +164,10 @@ function ParentDashboard() {
 
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
-  const paymentVerified = paymentRequest?.status === "verified";
-  const canDownload = issued && (isPaid || allowDownload || paymentVerified);
-  const blockReason = !issued
-    ? "Admit card is not issued by admin yet."
-    : paymentRequest?.status === "submitted"
-      ? "Payment submitted. Waiting for admin verification."
-    : !isPaid && !allowDownload
-      ? "Your admit card could not be downloaded without clearing the due."
-      : "";
+  const canDownload = isPaid;
+  const blockReason = !isPaid
+    ? "Your admit card could not be downloaded without clearing the due."
+    : "";
 
   const handleDownload = () => {
     if (!student || !exam) return;
