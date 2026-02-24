@@ -66,7 +66,24 @@ export default function AdminDashboard() {
       id: doc.id,
       ...doc.data()
     }));
-    setStudents(data);
+    const enriched = await Promise.all(
+      data.map(async (student) => {
+        if ((student.parentEmail && student.parentPassword) || !student.parentUid) {
+          return student;
+        }
+        try {
+          const userSnap = await getDoc(doc(db, "users", student.parentUid));
+          return {
+            ...student,
+            parentEmail: student.parentEmail || userSnap.data()?.parentEmail || "",
+            parentPassword: student.parentPassword || userSnap.data()?.parentPassword || ""
+          };
+        } catch {
+          return student;
+        }
+      })
+    );
+    setStudents(enriched);
   };
 
   useEffect(() => {
@@ -200,14 +217,16 @@ export default function AdminDashboard() {
         documents: uploadedDocuments,
         transportMode,
         parentUid,
-        parentEmail: normalizedParentEmail
+        parentEmail: normalizedParentEmail,
+        parentPassword
       });
 
       // Create user role doc
       await setDoc(doc(db, "users", parentUid), {
         role: "parent",
         studentId: studentRef.id,
-        parentEmail: normalizedParentEmail
+        parentEmail: normalizedParentEmail,
+        parentPassword
       });
 
       await secondaryAuth.signOut();
@@ -347,6 +366,17 @@ export default function AdminDashboard() {
 
     nextData.documents = [...(profileData.documents || []), ...uploadedDocs];
     await setDoc(doc(db, "students", studentId), nextData, { merge: true });
+
+    if (profileData?.parentUid) {
+      await setDoc(
+        doc(db, "users", profileData.parentUid),
+        {
+          parentEmail: profileData.parentEmail || "",
+          parentPassword: profileData.parentPassword || ""
+        },
+        { merge: true }
+      );
+    }
     await fetchStudents();
   };
 

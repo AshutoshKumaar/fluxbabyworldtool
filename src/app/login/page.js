@@ -125,7 +125,6 @@ export default function LoginPage() {
           className="w-full mt-1 mb-6 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
           onChange={(e) => setPassword(e.target.value)}
         />
-
         {/* Button */}
         <button
           onClick={handleLogin}

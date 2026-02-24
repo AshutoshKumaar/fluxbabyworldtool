@@ -228,6 +228,7 @@ export default function StudentsFeesList({
   const openStudentEditModal = (student) => {
     setStudentEditModal({
       studentId: student.id,
+      parentUid: student.parentUid || "",
       name: student.name || "",
       class: student.class || "",
       section: student.section || "",
@@ -244,6 +245,8 @@ export default function StudentsFeesList({
       photoFile: null,
       photoPreviewUrl: student.photoUrl || "",
       photoPreviewIsObjectUrl: false,
+      parentEmail: student.parentEmail || "",
+      parentPassword: student.parentPassword || "",
       documents: Array.isArray(student.documents) ? student.documents : [],
       newDocuments: []
     });
@@ -379,6 +382,9 @@ export default function StudentsFeesList({
         contactNo: studentEditModal.contactNo,
         address: studentEditModal.address,
         transportMode: studentEditModal.transportMode,
+        parentUid: studentEditModal.parentUid || "",
+        parentEmail: studentEditModal.parentEmail || "",
+        parentPassword: studentEditModal.parentPassword || "",
         documents: studentEditModal.documents || []
       }, studentEditModal.photoFile, studentEditModal.newDocuments || []);
       closeStudentEditModal();
@@ -704,19 +710,6 @@ export default function StudentsFeesList({
                           </div>
                         )}
                       </div>
-                      {/* <div className="bg-slate-50 rounded-xl p-3 sm:col-span-2">
-                        <p className="text-xs text-slate-500">Parent Login Credentials</p>
-                        <div className="mt-1 space-y-1">
-                          <p className="text-sm text-slate-800">
-                            <span className="font-semibold">Email:</span>{" "}
-                            {student.parentEmail || "Not available"}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            <span className="font-semibold">Password:</span>{" "}
-                            Not retrievable (security protected)
-                          </p>
-                        </div>
-                      </div> */}
                     </div>
                   </div>
 

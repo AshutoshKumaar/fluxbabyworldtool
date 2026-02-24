@@ -202,36 +202,54 @@ function ParentDashboard() {
           <title>Admit Card</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Mooli&display=swap');
-            body { font-family: 'Mooli', Arial, sans-serif; background: #f8fafc; padding: 24px; }
-            .card { max-width: 820px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
-            .header { display: flex; justify-content: center; align-items: center; padding: 20px 24px; background: linear-gradient(135deg, #4f46e5, #2563eb); color: white; text-align: center; }
-            .school { font-size: 20px; font-weight: bold; }
-            .content { padding: 24px; }
-            .row { display: flex; gap: 16px; }
-            .photo { width: 120px; height: 140px; border: 1px solid #e2e8f0; border-radius: 12px; object-fit: cover; background: #f1f5f9; }
-            .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-top: 12px; }
-            .field { background: #f8fafc; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+            @page { size: A4 portrait; margin: 8mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Mooli', Arial, sans-serif; background: #f8fafc; padding: 0; margin: 0; }
+            .card { width: 100%; max-width: 194mm; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; page-break-inside: avoid; }
+            .header { display: flex; gap: 14px; align-items: center; padding: 12px 16px; background: #fef08a; border-bottom: 2px solid #facc15; }
+            .school-logo { width: 60px; height: 60px; object-fit: contain; }
+            .header-meta { flex: 1; text-align: center; color: #111827; line-height: 1.18; padding-right: 18px; }
+            .reg { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+            .school { font-size: 30px; line-height: 1; font-weight: 800; color: #7f1d1d; margin: 0 0 4px; }
+            .addr { font-size: 12px; font-weight: 700; margin-top: 2px; }
+            .contact { font-size: 12px; font-weight: 700; margin-top: 2px; }
+            .email { font-size: 12px; font-weight: 700; margin-top: 2px; }
+            .exam-banner { text-align: center; padding: 6px 10px; background: #ecfeff; border-top: 1px solid #bae6fd; border-bottom: 1px solid #bae6fd; font-weight: 700; font-size: 12px; color: #0f172a; }
+            .content { padding: 10px; min-height: 218mm; display: flex; flex-direction: column; }
+            .row { display: flex; gap: 12px; }
+            .photo { width: 100px; height: 116px; border: 1px solid #e2e8f0; border-radius: 10px; object-fit: cover; background: #f1f5f9; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-top: 8px; }
+            .field { background: #f8fafc; padding: 8px 10px; border-radius: 8px; font-size: 12px; }
             .label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
             .value { font-weight: 600; color: #0f172a; margin-top: 4px; }
-            .exam { margin-top: 16px; padding: 12px; border: 1px dashed #cbd5f5; border-radius: 12px; }
-            .note { margin-top: 12px; font-size: 12px; color: #334155; background: #ecfeff; padding: 8px 10px; border-radius: 8px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-            th, td { border: 1px solid #cbd5f5; padding: 6px 8px; text-align: left; }
-            th { background: #eff6ff; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
-            .footer { display: flex; justify-content: space-between; margin-top: 24px; font-size: 12px; color: #475569; }
-            .sign-box { width: 180px; height: 70px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 11px; }
-            .seal { width: 120px; height: 70px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 11px; }
-            @media print { body { background: white; padding: 0; } .card { border: none; } }
+            .exam { margin-top: 10px; padding: 10px; border: 1px dashed #cbd5f5; border-radius: 10px; }
+            .note { margin-top: 8px; font-size: 11px; color: #334155; background: #ecfeff; padding: 6px 8px; border-radius: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+            th, td { border: 1px solid #cbd5f5; padding: 4px 6px; text-align: left; line-height: 1.2; }
+            th { background: #eff6ff; text-transform: uppercase; letter-spacing: .05em; font-size: 10px; }
+            .footer { display: flex; margin-top: auto; padding-top: 10px; font-size: 11px; color: #475569; page-break-inside: avoid; }
+            .footer > div { flex: 1; display: flex; }
+            .footer > div:nth-child(1) { justify-content: flex-start; }
+            .footer > div:nth-child(2) { justify-content: center; }
+            .footer > div:nth-child(3) { justify-content: flex-end; }
+            .sign-box { width: 170px; height: 58px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 10px; }
+            .seal { width: 120px; height: 58px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 10px; }
+            @media print { body { background: white; padding: 0; } .card { border: none; border-radius: 0; max-width: 100%; min-height: auto; } }
           </style>
         </head>
         <body>
           <div class="card">
             <div class="header">
-              <div>
-                <div class="school">Flux Baby World</div>
-                <div>Final Term Examination Date Sheet ${exam.session || ""}</div>
+              <img class="school-logo" src="/logo.png" alt="School Logo" />
+              <div class="header-meta">
+                <div class="reg">Udyam Org. Reg No. BR-16-0009367</div>
+                <div class="school">Flux Baby World School</div>
+                <div class="addr">Rajhatha, Behind Dr. N.K. Jha, Kalibari Road, Katihar</div>
+                <div class="contact">Cont. Us: 9122946266, 06452-358666</div>
+                <div class="email">E-mail: fluxbabyworld@gmail.com</div>
               </div>
             </div>
+            <div class="exam-banner">FINAL TERM EXAMINATION DATE SHEET ${exam.session || ""}</div>
             <div class="content">
               <div class="row">
                 <img class="photo" src="${student.photoUrl || ""}" alt="Student Photo" />
