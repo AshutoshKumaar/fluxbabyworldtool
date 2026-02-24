@@ -529,7 +529,7 @@ export default function AdmitCardSection({
         <head>
           <title>Admit Card</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Mooli&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Mooli&family=Dancing+Script:wght@700&display=swap');
             @page { size: A4 portrait; margin: 8mm; }
             * { box-sizing: border-box; }
             body { font-family: 'Mooli', Arial, sans-serif; background: #f8fafc; padding: 0; margin: 0; }
@@ -560,7 +560,9 @@ export default function AdmitCardSection({
             .footer > div:nth-child(1) { justify-content: flex-start; }
             .footer > div:nth-child(2) { justify-content: center; }
             .footer > div:nth-child(3) { justify-content: flex-end; }
-            .sign-box { width: 170px; height: 58px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 10px; }
+            .sig-wrap { width: 170px; min-height: 58px; border: 1px dashed #cbd5f5; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; justify-content: flex-end; }
+            .sig-name { font-family: 'Dancing Script', cursive; font-size: 28px; line-height: 1; color: #1d4ed8; text-align: center; }
+            .sig-title { margin-top: 4px; padding-top: 3px; border-top: 1px solid #cbd5f5; font-size: 10px; text-align: center; color: #475569; font-weight: 700; letter-spacing: .04em; }
             .seal { width: 120px; height: 58px; border: 1px dashed #cbd5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 10px; }
             @media print { body { background: white; padding: 0; } .card { border: none; border-radius: 0; max-width: 100%; min-height: auto; } }
           </style>
@@ -652,10 +654,16 @@ export default function AdmitCardSection({
 
               <div class="footer">
                 <div>
-                  <div class="sign-box">Principal Signature</div>
+                  <div class="sig-wrap">
+                    <div class="sig-name">Gyanvi</div>
+                    <div class="sig-title">Principal</div>
+                  </div>
                 </div>
                 <div>
-                  <div class="sign-box">Class Teacher Signature</div>
+                  <div class="sig-wrap">
+                    <div class="sig-name">Monika Singh</div>
+                    <div class="sig-title">MD</div>
+                  </div>
                 </div>
                 <div>
                   <div class="seal">School Seal</div>
@@ -1211,11 +1219,27 @@ export default function AdmitCardSection({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div className="h-16 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">
-                      Principal Signature
+                    <div className="h-16 border border-dashed border-slate-300 rounded-lg px-2 flex flex-col items-center justify-center">
+                      <span
+                        className="text-lg text-blue-700 leading-none"
+                        style={{ fontFamily: "cursive" }}
+                      >
+                        Gyanvi
+                      </span>
+                      <span className="mt-1 text-[10px] text-slate-500 font-semibold">
+                        Principal
+                      </span>
                     </div>
-                    <div className="h-16 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">
-                      Class Teacher Signature
+                    <div className="h-16 border border-dashed border-slate-300 rounded-lg px-2 flex flex-col items-center justify-center">
+                      <span
+                        className="text-lg text-blue-700 leading-none"
+                        style={{ fontFamily: "cursive" }}
+                      >
+                        Monika Singh
+                      </span>
+                      <span className="mt-1 text-[10px] text-slate-500 font-semibold">
+                        MD
+                      </span>
                     </div>
                     <div className="h-16 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">
                       School Seal
