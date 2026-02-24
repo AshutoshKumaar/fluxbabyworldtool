@@ -29,6 +29,33 @@ const formatDate = (value) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "--";
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString("hi-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
+const getDateFromValue = (value) => {
+  if (!value) return null;
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDuration = (ms) => {
+  if (ms <= 0) return "00:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const mm = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const ss = String(totalSeconds % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+};
+
 const getFeeDue = (fee) => {
   if (fee?.dueFees !== undefined && fee?.dueFees !== null) {
     return Number(fee.dueFees || 0);
@@ -59,9 +86,9 @@ const makeUpiRefId = () => {
   return `FBW${timePart}${randomPart}`.slice(0, 24);
 };
 
-const DEMO_UPI_ID = "7079666741-0@airtel";
+const DEMO_UPI_ID = "munnasingh.king-2@oksbi";
 const DEMO_PAYEE_NAME = "Flux Baby World";
-const ADMIN_WHATSAPP_NUMBER = "917549298707";
+const ADMIN_WHATSAPP_NUMBER = "919122946266";
 
 function ParentDashboard() {
   const router = useRouter();
@@ -77,6 +104,12 @@ function ParentDashboard() {
   const [showQr, setShowQr] = useState(false);
   const [qrDownloading, setQrDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -168,8 +201,14 @@ function ParentDashboard() {
   const isPaid = totalDue <= 0;
   const canDownload = isPaid || allowDownload;
   const blockReason = !isPaid && !allowDownload
-    ? "Your admit card could not be downloaded without clearing the due."
+    ? "बकाया राशि भुगतान किए बिना Admit Card download नहीं होगा।"
     : "";
+  const isWaitingForVerification = paymentRequest?.status === "submitted";
+  const waitingStartedAt = getDateFromValue(paymentRequest?.submittedAt);
+  const waitingDeadline = waitingStartedAt
+    ? waitingStartedAt.getTime() + 15 * 60 * 1000
+    : null;
+  const waitingRemaining = waitingDeadline ? waitingDeadline - nowTick : 0;
 
   const handleDownload = () => {
     if (!student || !exam) return;
@@ -346,10 +385,14 @@ function ParentDashboard() {
   const buildUpiUrl = () => {
     const upiId = DEMO_UPI_ID;
     const payeeName = DEMO_PAYEE_NAME;
-    // Keep QR minimal for better compatibility with strict UPI apps.
+    const amount = totalDue > 0 ? totalDue : 1;
+    const tr = makeUpiRefId();
+    const tn = `Fee ${student?.name || "Student"} ${exam?.session || ""}`.trim();
     return `upi://pay?pa=${encodeURIComponent(
       upiId
-    )}&pn=${encodeURIComponent(payeeName)}&cu=INR`;
+    )}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(
+      amount
+    )}&tr=${encodeURIComponent(tr)}&tn=${encodeURIComponent(tn)}&cu=INR`;
   };
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
@@ -412,15 +455,18 @@ function ParentDashboard() {
       await setDoc(
         doc(db, "exams", exam.id, "permissions", student.id),
         {
+          // Reset any old manual override until admin verifies this request.
+          allowDownload: false,
           paymentRequest: request,
           updatedAt: serverTimestamp()
         },
         { merge: true }
       );
+      setAllowDownload(false);
       setPaymentRequest({ ...request, submittedAt: new Date() });
       setUtrInput("");
       openAdminWhatsApp(
-        `Hello Admin, I have paid my due amount.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nAmount: Rs ${request.amount}\nUTR: ${utr}\nPlease unlock my admit card.`
+        `Mam, I have paid my due amount.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nAmount: Rs ${request.amount}\nUTR: ${utr}\nPlease unlock my admit card.`
       );
       alert("Payment proof submitted. Waiting for admin verification.");
     } catch (err) {
@@ -444,19 +490,53 @@ function ParentDashboard() {
       await setDoc(
         doc(db, "exams", exam.id, "permissions", student.id),
         {
+          // Reset any old manual override until admin verifies this request.
+          allowDownload: false,
           paymentRequest: request,
           updatedAt: serverTimestamp()
         },
         { merge: true }
       );
+      setAllowDownload(false);
       setPaymentRequest({ ...request, submittedAt: new Date() });
       openAdminWhatsApp(
-        `Hello Admin, I want to pay at school.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nDue Amount: Rs ${request.amount}\nPlease confirm and unlock my admit card after payment.`
+        `Mam, I want to pay at school.\nStudent: ${student.name}\nClass: ${student.class}${student.section ? ` (${student.section})` : ""}\nDue Amount: Rs ${request.amount}\nPlease confirm and unlock my admit card after payment.`
       );
       alert("Request sent. Please pay at school and ask admin to verify.");
     } catch (err) {
       console.error(err);
       alert("Could not submit pay-at-school request.");
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  const handlePayViaUpi = async () => {
+    if (!student?.id || !exam?.id) return;
+    setPaymentSubmitting(true);
+    try {
+      const request = {
+        method: "pay_via_upi",
+        amount: totalDue > 0 ? totalDue : 0,
+        status: "submitted",
+        submittedAt: serverTimestamp()
+      };
+      await setDoc(
+        doc(db, "exams", exam.id, "permissions", student.id),
+        {
+          // Reset any old manual override until admin verifies this request.
+          allowDownload: false,
+          paymentRequest: request,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+      setAllowDownload(false);
+      setPaymentRequest({ ...request, submittedAt: new Date() });
+      window.open(buildUpiUrl(), "_self");
+    } catch (err) {
+      console.error(err);
+      alert("Could not start UPI payment.");
     } finally {
       setPaymentSubmitting(false);
     }
@@ -548,12 +628,41 @@ function ParentDashboard() {
                 onDownload={handleDownload}
                 onPayAtSchool={handlePayAtSchool}
                 onShowQr={() => setShowQr(true)}
+                onPayViaUpi={handlePayViaUpi}
               />
               <div className="card-soft">
                 <p className="card-title">Payment Verification</p>
                 <p className="mt-2 text-xs text-slate-500">
-                  After payment, submit UTR/Ref no. Admin will verify and unlock admit card.
+                  After payment, submit UTR/Ref no. Admin will verify and then unlock admit card.
                 </p>
+                {isWaitingForVerification && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-semibold text-amber-800">
+                      सत्यापन प्रगति में है | Verification in progress
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      आपका भुगतान अनुरोध दर्ज हो चुका है। कृपया 10-15 मिनट प्रतीक्षा करें।
+                      सत्यापन के बाद Admit Card download के लिए सक्रिय हो जाएगा।
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Your payment request has been received. Please wait 10-15 minutes.
+                      Download will be enabled after admin verification.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                        अनुरोध समय: {formatDateTime(paymentRequest?.submittedAt)}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                        Live Timer: {formatDuration(waitingRemaining)}
+                      </span>
+                      {paymentRequest?.utr && (
+                        <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                          UTR: {paymentRequest.utr}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"

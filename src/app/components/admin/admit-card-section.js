@@ -1143,51 +1143,72 @@ export default function AdmitCardSection({
                     </label>
                   )}
 
-                  {paymentRequest && (
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-sm font-semibold text-slate-800">
-                        Parent Payment Request
-                      </p>
+                  <div className="rounded-xl border border-slate-200 p-3">
+                    <p className="text-sm font-semibold text-slate-800">
+                      Payment Verification (Admin)
+                    </p>
+                    {!paymentRequest ? (
                       <p className="text-xs text-slate-500 mt-1">
-                        UTR: {paymentRequest.utr || "--"} | Amount: Rs{" "}
-                        {paymentRequest.amount ?? 0}
+                        Parent jab `I Have Paid` submit karega, verification request yahin
+                        dikhegi. Fir yahin se `Verify Payment` karke admit card unlock karein.
                       </p>
-                      <p className="text-xs text-slate-500">
-                        Status:{" "}
-                        <span
-                          className={`font-semibold ${
-                            paymentRequest.status === "verified"
-                              ? "text-emerald-600"
-                              : paymentRequest.status === "submitted"
-                                ? "text-amber-600"
-                                : "text-rose-600"
-                          }`}
-                        >
-                          {paymentRequest.status || "submitted"}
-                        </span>
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => verifyPaymentRequest(selectedId, "verified")}
-                          disabled={
-                            savingPermission || paymentRequest.status === "verified"
-                          }
-                          className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-                        >
-                          Verify Payment
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => verifyPaymentRequest(selectedId, "rejected")}
-                          disabled={savingPermission}
-                          className="px-3 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    ) : (
+                      <>
+                        {(() => {
+                          const isFinalStatus =
+                            paymentRequest.status === "verified" ||
+                            paymentRequest.status === "rejected";
+                          return (
+                            <>
+                        <p className="text-xs text-slate-500 mt-1">
+                          UTR: {paymentRequest.utr || "--"} | Amount: Rs{" "}
+                          {paymentRequest.amount ?? 0}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Status:{" "}
+                          <span
+                            className={`font-semibold ${
+                              paymentRequest.status === "verified"
+                                ? "text-emerald-600"
+                                : paymentRequest.status === "submitted"
+                                  ? "text-amber-600"
+                                  : "text-rose-600"
+                            }`}
+                          >
+                            {paymentRequest.status || "submitted"}
+                          </span>
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => verifyPaymentRequest(selectedId, "verified")}
+                            disabled={
+                              savingPermission || isFinalStatus
+                            }
+                            className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            Verify Payment
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => verifyPaymentRequest(selectedId, "rejected")}
+                            disabled={savingPermission || isFinalStatus}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                        {isFinalStatus && (
+                          <p className="mt-2 text-[11px] text-slate-500">
+                            Final status set. Action buttons are disabled.
+                          </p>
+                        )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                     <div className="h-16 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">

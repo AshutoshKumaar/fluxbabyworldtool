@@ -5,7 +5,8 @@ export default function FeeSummary({
   blockReason,
   onDownload,
   onPayAtSchool,
-  onShowQr
+  onShowQr,
+  onPayViaUpi
 }) {
   return (
     <div className="card-soft">
@@ -40,7 +41,7 @@ export default function FeeSummary({
         >
           Download Admit Card
         </button>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <button
             type="button"
             onClick={onPayAtSchool}
@@ -48,14 +49,21 @@ export default function FeeSummary({
           >
             Pay At School
           </button>
+          <button
+            type="button"
+            onClick={onShowQr}
+            className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50"
+          >
+            Pay via QR
+          </button>
+          <button
+            type="button"
+            onClick={onPayViaUpi}
+            className="w-full border border-emerald-200 text-emerald-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-50"
+          >
+            Pay via UPI
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onShowQr}
-          className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50"
-        >
-          Pay via QR
-        </button>
       </div>
     </div>
   );
