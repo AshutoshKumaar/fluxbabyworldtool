@@ -496,8 +496,9 @@ export default function AdmitCardSection({
   const selectedFees = selectedId ? feeCache[selectedId] || [] : [];
   const totalDue = getTotalDue(selectedFees);
   const isPaid = totalDue <= 0;
+  const allowDownload = permissionMap[selectedId]?.allowDownload || false;
   const paymentRequest = permissionMap[selectedId]?.paymentRequest || null;
-  const canDownload = isPaid;
+  const canDownload = isPaid || allowDownload;
   const scheduleRows = selectedStudent
     ? scheduleByClass[normalizeClassKey(selectedStudent.class)] || []
     : [];
@@ -505,7 +506,7 @@ export default function AdmitCardSection({
   const downloadAdmitCard = (student) => {
     if (!student) return;
     if (!canDownload) {
-      showToast("Clear dues first. Download is allowed only after payment.", "error");
+      showToast("Clear dues or enable admin override permission.", "error");
       return;
     }
     const win = window.open("", "_blank");
@@ -1098,10 +1099,16 @@ export default function AdmitCardSection({
                     </span>
                   </div>
 
-                  {!isPaid && (
+                  {!isPaid && !allowDownload && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
                       Payment pending. Admit card will be available after dues
                       are cleared.
+                    </div>
+                  )}
+
+                  {!isPaid && allowDownload && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700">
+                      Admin override is enabled. Download is allowed even with due.
                     </div>
                   )}
 
@@ -1121,6 +1128,20 @@ export default function AdmitCardSection({
                       Pay Now (Demo)
                     </button>
                   </div>
+
+                  {!isPaid && (
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={allowDownload}
+                        onChange={(e) =>
+                          togglePermission(selectedId, e.target.checked)
+                        }
+                        disabled={savingPermission}
+                      />
+                      Allow download for this student (admin override)
+                    </label>
+                  )}
 
                   {paymentRequest && (
                     <div className="rounded-xl border border-slate-200 p-3">

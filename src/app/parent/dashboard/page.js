@@ -70,6 +70,7 @@ function ParentDashboard() {
   const [fees, setFees] = useState([]);
   const [exam, setExam] = useState(null);
   const [scheduleRows, setScheduleRows] = useState([]);
+  const [allowDownload, setAllowDownload] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState(null);
   const [utrInput, setUtrInput] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
@@ -148,6 +149,7 @@ function ParentDashboard() {
           const permissionDoc = await getDoc(
             doc(db, "exams", latestExam.id, "permissions", userData.studentId)
           );
+          setAllowDownload(!!permissionDoc.data()?.allowDownload);
           setPaymentRequest(permissionDoc.data()?.paymentRequest || null);
         }
 
@@ -164,8 +166,8 @@ function ParentDashboard() {
 
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
-  const canDownload = isPaid;
-  const blockReason = !isPaid
+  const canDownload = isPaid || allowDownload;
+  const blockReason = !isPaid && !allowDownload
     ? "Your admit card could not be downloaded without clearing the due."
     : "";
 
