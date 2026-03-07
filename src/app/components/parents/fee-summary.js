@@ -6,7 +6,9 @@ export default function FeeSummary({
   onDownload,
   onPayAtSchool,
   onShowQr,
-  onPayViaUpi
+  onPayViaUpi,
+  paymentLocked = false,
+  paymentLockLabel = ""
 }) {
   return (
     <div className="card-soft">
@@ -45,25 +47,33 @@ export default function FeeSummary({
           <button
             type="button"
             onClick={onPayAtSchool}
-            className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50"
+            disabled={paymentLocked}
+            className="w-full border border-slate-200 text-slate-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Pay At School
           </button>
           <button
             type="button"
             onClick={onShowQr}
-            className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50"
+            disabled={paymentLocked}
+            className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Pay via QR
           </button>
           <button
             type="button"
             onClick={onPayViaUpi}
-            className="w-full border border-emerald-200 text-emerald-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-50"
+            disabled={paymentLocked}
+            className="w-full border border-emerald-200 text-emerald-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Pay via UPI
           </button>
         </div>
+        {paymentLocked && paymentLockLabel && (
+          <p className="text-xs text-slate-500">
+            {paymentLockLabel}
+          </p>
+        )}
       </div>
     </div>
   );

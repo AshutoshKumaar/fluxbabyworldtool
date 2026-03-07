@@ -17,6 +17,8 @@ import ParentNavbar from "@/app/components/parents/navbar";
 import AdmitCardPreview from "@/app/components/parents/admit-card-preview";
 import FeeSummary from "@/app/components/parents/fee-summary";
 import FeeHistory from "@/app/components/parents/fee-history";
+import TransferCertificateCard from "@/app/components/parents/transfer-certificate-card";
+import { buildTransferCertificateHtml } from "../../../lib/transfer-certificate";
 
 const formatDate = (value) => {
   if (!value) return "--";
@@ -103,6 +105,7 @@ function ParentDashboard() {
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qrDownloading, setQrDownloading] = useState(false);
+  const [tcData, setTcData] = useState(null);
   const [error, setError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
 
@@ -144,6 +147,11 @@ function ParentDashboard() {
           return;
         }
         setStudent({ id: studentDoc.id, ...studentDoc.data() });
+
+        const tcDoc = await getDoc(
+          doc(db, "transferCertificates", userData.studentId)
+        );
+        setTcData(tcDoc.exists() ? tcDoc.data() : null);
 
         const feesSnap = await getDocs(
           collection(db, "fees", userData.studentId, "months")
@@ -200,8 +208,11 @@ function ParentDashboard() {
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
   const canDownload = isPaid || allowDownload;
+  const paymentStatus = paymentRequest?.status || "";
+  const paymentLocked =
+    paymentStatus === "submitted" || paymentStatus === "verified";
   const blockReason = !isPaid && !allowDownload
-    ? "बकाया राशि भुगतान किए बिना Admit Card download नहीं होगा।"
+    ? "\u092c\u0915\u093e\u092f\u093e \u0930\u093e\u0936\u093f \u092d\u0941\u0917\u0924\u093e\u0928 \u0915\u093f\u090f \u092c\u093f\u0928\u093e Admit Card download \u0928\u0939\u0940\u0902 \u0939\u094b\u0917\u093e\u0964"
     : "";
   const isWaitingForVerification = paymentRequest?.status === "submitted";
   const waitingStartedAt = getDateFromValue(paymentRequest?.submittedAt);
@@ -374,6 +385,15 @@ function ParentDashboard() {
     if (!win) return;
     win.document.open();
     win.document.write(html);
+    win.document.close();
+  };
+
+  const handleDownloadTc = () => {
+    if (!tcData) return;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.open();
+    win.document.write(buildTransferCertificateHtml(tcData));
     win.document.close();
   };
 
@@ -631,6 +651,12 @@ function ParentDashboard() {
                 onPayAtSchool={handlePayAtSchool}
                 onShowQr={() => setShowQr(true)}
                 onPayViaUpi={handlePayViaUpi}
+                paymentLocked={paymentLocked}
+                paymentLockLabel={
+                  paymentLocked
+                    ? "Payment request already submitted. Wait for admin verification."
+                    : ""
+                }
               />
               <div className="card-soft">
                 <p className="card-title">Payment Verification</p>
@@ -640,11 +666,11 @@ function ParentDashboard() {
                 {isWaitingForVerification && (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                     <p className="text-sm font-semibold text-amber-800">
-                      सत्यापन प्रगति में है | Verification in progress
+                      {"\u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u092a\u094d\u0930\u0917\u0924\u093f \u092e\u0947\u0902 \u0939\u0948 | Verification in progress"}
                     </p>
                     <p className="mt-1 text-xs text-amber-700">
-                      आपका भुगतान अनुरोध दर्ज हो चुका है। कृपया 10-15 मिनट प्रतीक्षा करें।
-                      सत्यापन के बाद Admit Card download के लिए सक्रिय हो जाएगा।
+                      {"\u0906\u092a\u0915\u093e \u092d\u0941\u0917\u0924\u093e\u0928 \u0905\u0928\u0941\u0930\u094b\u0927 \u0926\u0930\u094d\u091c \u0939\u094b \u091a\u0941\u0915\u093e \u0939\u0948\u0964 \u0915\u0943\u092a\u092f\u093e 10-15 \u092e\u093f\u0928\u091f \u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e \u0915\u0930\u0947\u0902\u0964"}
+                      {" \u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u0915\u0947 \u092c\u093e\u0926 Admit Card download \u0915\u0947 \u0932\u093f\u090f \u0938\u0915\u094d\u0930\u093f\u092f \u0939\u094b \u091c\u093e\u090f\u0917\u093e\u0964"}
                     </p>
                     <p className="mt-1 text-xs text-amber-700">
                       Your payment request has been received. Please wait 10-15 minutes.
@@ -652,7 +678,7 @@ function ParentDashboard() {
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
-                        अनुरोध समय: {formatDateTime(paymentRequest?.submittedAt)}
+                        {"\u0905\u0928\u0941\u0930\u094b\u0927 \u0938\u092e\u092f: "} {formatDateTime(paymentRequest?.submittedAt)}
                       </span>
                       <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
                         Live Timer: {formatDuration(waitingRemaining)}
@@ -676,13 +702,14 @@ function ParentDashboard() {
                     }
                     placeholder="Enter UTR / Ref No (Example: 123456789012)"
                     maxLength={30}
-                    className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    disabled={paymentLocked || paymentSubmitting}
+                    className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={handleSubmitPaymentRequest}
-                    disabled={paymentSubmitting}
-                    className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60"
+                    disabled={paymentLocked || paymentSubmitting}
+                    className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {paymentSubmitting ? "Submitting..." : "I Have Paid"}
                   </button>
@@ -690,6 +717,11 @@ function ParentDashboard() {
                 <p className="mt-2 text-[11px] text-slate-500">
                   Enter only letters and numbers. No space or special characters.
                 </p>
+                {paymentLocked && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Request already submitted. Please wait for admin verification before trying again.
+                  </p>
+                )}
                 {paymentRequest?.status && (
                   <div className="mt-3 text-sm">
                     <span className="text-slate-500">Status: </span>
@@ -717,6 +749,10 @@ function ParentDashboard() {
                   </div>
                 )}
               </div>
+              <TransferCertificateCard
+                tcData={tcData}
+                onDownload={handleDownloadTc}
+              />
               <FeeHistory fees={fees} />
             </div>
           </div>

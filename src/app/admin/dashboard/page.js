@@ -29,6 +29,7 @@ import Navbar from "@/app/components/admin/navbar";
 import AddStudentCard from "@/app/components/admin/add-student-card";
 import StudentsFeesList from "@/app/components/admin/students-fees-list";
 import AdmitCardSection from "@/app/components/admin/admit-card-section";
+import TransferCertificateSection from "@/app/components/admin/transfer-certificate-section";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -520,6 +521,8 @@ export default function AdminDashboard() {
           students={students}
           onFetchMonthlyFees={fetchMonthlyFees}
         />
+
+        <TransferCertificateSection students={students} />
       </div>
     </div>
   );
