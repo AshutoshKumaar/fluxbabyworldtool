@@ -73,8 +73,21 @@ function DocumentIcon() {
   );
 }
 
-export default function TransferCertificateSection({ students }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function TransferCertificateSection({
+  students,
+  isOpen: controlledIsOpen,
+  onToggle
+}) {
+  const [localIsOpen, setLocalIsOpen] = useState(false);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleSectionToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((value) => !value);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState(getDefaultTransferCertificate());
@@ -203,7 +216,7 @@ export default function TransferCertificateSection({ students }) {
         </div>
         <button
           type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
+          onClick={handleSectionToggle}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 mr-3"
           aria-label={
             isOpen

@@ -11,6 +11,7 @@ import {
   X,
   LayoutDashboard,
   Users,
+  GraduationCap,
   IndianRupee,
   User,
   FileText,
@@ -74,6 +75,7 @@ export default function Navbar({ role = "admin" }) {
             {role === "admin" && (
               <>
                 <NavItem icon={Users} label="Students" path="/admin/students" />
+                <NavItem icon={GraduationCap} label="Teachers" path="/admin/teachers" />
                 <NavItem icon={IndianRupee} label="Fees" path="/admin/fees" />
               </>
             )}
@@ -126,6 +128,7 @@ export default function Navbar({ role = "admin" }) {
             {role === "admin" && (
               <>
                 <NavItem icon={Users} label="Students" path="/admin/students" />
+                <NavItem icon={GraduationCap} label="Teachers" path="/admin/teachers" />
                 <NavItem icon={IndianRupee} label="Fees" path="/admin/fees" />
               </>
             )}

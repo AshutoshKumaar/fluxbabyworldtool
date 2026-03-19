@@ -38,9 +38,20 @@ export default function AddStudentCard({
   setParentEmail,
   parentPassword,
   setParentPassword,
-  onAddStudent
+  onAddStudent,
+  isOpen: controlledIsOpen,
+  onToggle
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [localIsOpen, setLocalIsOpen] = useState(true);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((value) => !value);
+  };
   const previewUrl = useMemo(
     () => (photoFile ? URL.createObjectURL(photoFile) : ""),
     [photoFile]
@@ -104,7 +115,7 @@ export default function AddStudentCard({
     <div className="card card-pad mb-8 sm:mb-10">
       <button
         type="button"
-        onClick={() => setIsOpen((value) => !value)}
+        onClick={handleToggle}
         className="w-full flex items-center justify-between text-left"
         aria-expanded={isOpen}
         aria-controls="add-student-form"

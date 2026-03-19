@@ -76,9 +76,20 @@ const formatClassSection = (student) => {
 
 export default function AdmitCardSection({
   students,
-  onFetchMonthlyFees
+  onFetchMonthlyFees,
+  isOpen: controlledIsOpen,
+  onToggle
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [localIsOpen, setLocalIsOpen] = useState(true);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleSectionToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((value) => !value);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [feeCache, setFeeCache] = useState({});
@@ -696,7 +707,7 @@ export default function AdmitCardSection({
       )}
       <button
         type="button"
-        onClick={() => setIsOpen((value) => !value)}
+        onClick={handleSectionToggle}
         className="w-full flex items-center justify-between text-left"
         aria-expanded={isOpen}
         aria-controls="admit-card-panel"

@@ -30,12 +30,16 @@ import AddStudentCard from "@/app/components/admin/add-student-card";
 import StudentsFeesList from "@/app/components/admin/students-fees-list";
 import AdmitCardSection from "@/app/components/admin/admit-card-section";
 import TransferCertificateSection from "@/app/components/admin/transfer-certificate-section";
+import MarksheetSection from "@/app/components/admin/marksheet-section";
+// import TeacherManagementSection from "@/app/components/admin/teacher-management-section";
+// import AcademicMonitorSection from "@/app/components/admin/academic-monitor-section";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accessError, setAccessError] = useState("");
+  const [activeSection, setActiveSection] = useState("add-student");
 
   // Student fields
   const [name, setName] = useState("");
@@ -413,6 +417,10 @@ export default function AdminDashboard() {
     }
   };
 
+  const toggleSection = (sectionKey) => {
+    setActiveSection((prev) => (prev === sectionKey ? "" : sectionKey));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
@@ -507,7 +515,13 @@ export default function AdminDashboard() {
           parentPassword={parentPassword}
           setParentPassword={setParentPassword}
           onAddStudent={addStudent}
+          isOpen={activeSection === "add-student"}
+          onToggle={() => toggleSection("add-student")}
         />
+
+        {/* <TeacherManagementSection students={students} />
+
+        <AcademicMonitorSection students={students} /> */}
 
         <StudentsFeesList
           students={students}
@@ -515,14 +529,28 @@ export default function AdminDashboard() {
           onSaveMonthlyFees={saveMonthlyFees}
           onUpdateStudent={updateStudentProfile}
           onDeleteStudent={deleteStudent}
+          isOpen={activeSection === "students-fees"}
+          onToggle={() => toggleSection("students-fees")}
         />
 
         <AdmitCardSection
           students={students}
           onFetchMonthlyFees={fetchMonthlyFees}
+          isOpen={activeSection === "admit-card"}
+          onToggle={() => toggleSection("admit-card")}
         />
 
-        <TransferCertificateSection students={students} />
+        <MarksheetSection
+          students={students}
+          isOpen={activeSection === "marksheet"}
+          onToggle={() => toggleSection("marksheet")}
+        />
+
+        <TransferCertificateSection
+          students={students}
+          isOpen={activeSection === "transfer-certificate"}
+          onToggle={() => toggleSection("transfer-certificate")}
+        />
       </div>
     </div>
   );

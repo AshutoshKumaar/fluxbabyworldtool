@@ -18,7 +18,9 @@ import AdmitCardPreview from "@/app/components/parents/admit-card-preview";
 import FeeSummary from "@/app/components/parents/fee-summary";
 import FeeHistory from "@/app/components/parents/fee-history";
 import TransferCertificateCard from "@/app/components/parents/transfer-certificate-card";
+import MarksheetCard from "@/app/components/parents/marksheet-card";
 import { buildTransferCertificateHtml } from "../../../lib/transfer-certificate";
+import { buildReportCardHtml, mergeReportCardData } from "../../../lib/report-card";
 
 const formatDate = (value) => {
   if (!value) return "--";
@@ -41,6 +43,16 @@ const formatDateTime = (value) => {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit"
+  });
+};
+
+const formatMonthLabel = (dateValue) => {
+  if (!dateValue) return "--";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  return date.toLocaleString("en-IN", {
+    month: "long",
+    year: "numeric"
   });
 };
 
@@ -106,6 +118,9 @@ function ParentDashboard() {
   const [showQr, setShowQr] = useState(false);
   const [qrDownloading, setQrDownloading] = useState(false);
   const [tcData, setTcData] = useState(null);
+  const [reportCard, setReportCard] = useState(null);
+  const [homeworkItems, setHomeworkItems] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [error, setError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
 
@@ -147,11 +162,23 @@ function ParentDashboard() {
           return;
         }
         setStudent({ id: studentDoc.id, ...studentDoc.data() });
+        const studentData = studentDoc.data();
+        const studentClass = String(studentData.class || "").trim();
+        const studentSection = String(studentData.section || "").trim();
 
         const tcDoc = await getDoc(
           doc(db, "transferCertificates", userData.studentId)
         );
         setTcData(tcDoc.exists() ? tcDoc.data() : null);
+
+        const reportCardDoc = await getDoc(
+          doc(db, "reportCards", userData.studentId)
+        );
+        setReportCard(
+          reportCardDoc.exists()
+            ? mergeReportCardData({ id: studentDoc.id, ...studentData }, reportCardDoc.data())
+            : null
+        );
 
         const feesSnap = await getDocs(
           collection(db, "fees", userData.studentId, "months")
@@ -194,6 +221,44 @@ function ParentDashboard() {
           setPaymentRequest(permissionDoc.data()?.paymentRequest || null);
         }
 
+        const homeworkSnap = await getDocs(collection(db, "homework"));
+        const homeworkData = homeworkSnap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          .filter(
+            (item) =>
+              String(item.className || "").trim() === studentClass &&
+              String(item.sectionName || "").trim() === studentSection
+          )
+          .sort((a, b) => {
+            const aTime = a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+          });
+        setHomeworkItems(homeworkData);
+
+        const attendanceSnap = await getDocs(collection(db, "studentAttendance"));
+        const history = attendanceSnap.docs
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+          .filter(
+            (item) =>
+              String(item.className || "").trim() === studentClass &&
+              String(item.sectionName || "").trim() === studentSection
+          )
+          .map((item) => {
+            const record = item.records?.[studentDoc.id];
+            if (!record) return null;
+            return {
+              id: item.id,
+              date: item.date,
+              status: record.status || "present",
+              markedBy: record.markedBy || "",
+              studentName: record.studentName || studentData.name || ""
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+        setAttendanceRecords(history);
+
         setLoading(false);
       } catch (err) {
         console.error(err);
@@ -208,6 +273,55 @@ function ParentDashboard() {
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
   const isPaid = totalDue <= 0;
   const canDownload = isPaid || allowDownload;
+  const attendanceSummary = useMemo(() => {
+    const totalDays = attendanceRecords.length;
+    const presentDays = attendanceRecords.filter(
+      (item) => item.status === "present" || item.status === "late"
+    ).length;
+    const absentDays = attendanceRecords.filter((item) => item.status === "absent").length;
+    const leaveDays = attendanceRecords.filter((item) => item.status === "leave").length;
+    return {
+      totalDays,
+      presentDays,
+      absentDays,
+      leaveDays,
+      presentPct: totalDays ? Math.round((presentDays / totalDays) * 100) : 0,
+      absentPct: totalDays ? Math.round((absentDays / totalDays) * 100) : 0
+    };
+  }, [attendanceRecords]);
+  const monthlyAttendance = useMemo(() => {
+    const bucket = new Map();
+    attendanceRecords.forEach((item) => {
+      if (!item.date) return;
+      const date = new Date(item.date);
+      if (Number.isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      if (!bucket.has(key)) {
+        bucket.set(key, {
+          key,
+          label: formatMonthLabel(date),
+          present: 0,
+          absent: 0,
+          leave: 0,
+          total: 0
+        });
+      }
+      const current = bucket.get(key);
+      current.total += 1;
+      if (item.status === "present" || item.status === "late") current.present += 1;
+      else if (item.status === "absent") current.absent += 1;
+      else if (item.status === "leave") current.leave += 1;
+    });
+
+    return Array.from(bucket.values())
+      .sort((a, b) => b.key.localeCompare(a.key))
+      .map((item) => ({
+        ...item,
+        presentPct: item.total ? Math.round((item.present / item.total) * 100) : 0,
+        absentPct: item.total ? Math.round((item.absent / item.total) * 100) : 0,
+        leavePct: item.total ? Math.round((item.leave / item.total) * 100) : 0
+      }));
+  }, [attendanceRecords]);
   const paymentStatus = paymentRequest?.status || "";
   const paymentLocked =
     paymentStatus === "submitted" || paymentStatus === "verified";
@@ -394,6 +508,15 @@ function ParentDashboard() {
     if (!win) return;
     win.document.open();
     win.document.write(buildTransferCertificateHtml(tcData));
+    win.document.close();
+  };
+
+  const handleDownloadReportCard = () => {
+    if (!reportCard) return;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.open();
+    win.document.write(buildReportCardHtml(reportCard));
     win.document.close();
   };
 
@@ -630,35 +753,36 @@ function ParentDashboard() {
         {!student ? (
           <div className="text-slate-500">No student data available.</div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
-            <AdmitCardPreview
-              student={student}
-              exam={exam}
-              scheduleRows={scheduleRows}
-              canDownload={canDownload}
-              blockReason={blockReason}
-              onDownload={handleDownload}
-              formatDate={formatDate}
-            />
-
-            <div className="space-y-4">
-              <FeeSummary
-                totalDue={totalDue}
-                isPaid={isPaid}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
+              <AdmitCardPreview
+                student={student}
+                exam={exam}
+                scheduleRows={scheduleRows}
                 canDownload={canDownload}
                 blockReason={blockReason}
                 onDownload={handleDownload}
-                onPayAtSchool={handlePayAtSchool}
-                onShowQr={() => setShowQr(true)}
-                onPayViaUpi={handlePayViaUpi}
-                paymentLocked={paymentLocked}
-                paymentLockLabel={
-                  paymentLocked
-                    ? "Payment request already submitted. Wait for admin verification."
-                    : ""
-                }
+                formatDate={formatDate}
               />
-              <div className="card-soft">
+
+              <div className="space-y-4">
+                <FeeSummary
+                  totalDue={totalDue}
+                  isPaid={isPaid}
+                  canDownload={canDownload}
+                  blockReason={blockReason}
+                  onDownload={handleDownload}
+                  onPayAtSchool={handlePayAtSchool}
+                  onShowQr={() => setShowQr(true)}
+                  onPayViaUpi={handlePayViaUpi}
+                  paymentLocked={paymentLocked}
+                  paymentLockLabel={
+                    paymentLocked
+                      ? "Payment request already submitted. Wait for admin verification."
+                      : ""
+                  }
+                />
+                <div className="card-soft">
                 <p className="card-title">Payment Verification</p>
                 <p className="mt-2 text-xs text-slate-500">
                   After payment, submit UTR/Ref no. Admin will verify and then unlock admit card.
@@ -747,13 +871,251 @@ function ParentDashboard() {
                       </p>
                     )}
                   </div>
-                )}
+                  )}
+                </div>
+                <TransferCertificateCard
+                  tcData={tcData}
+                  onDownload={handleDownloadTc}
+                />
+                <MarksheetCard
+                  reportCard={reportCard}
+                  onDownload={handleDownloadReportCard}
+                />
+                <FeeHistory fees={fees} />
               </div>
-              <TransferCertificateCard
-                tcData={tcData}
-                onDownload={handleDownloadTc}
-              />
-              <FeeHistory fees={fees} />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">
+              <div className="space-y-6">
+                <div className="card-soft">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="card-title">Student Attendance Summary</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Present/absent percentage and recent attendance status.
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                      {attendanceSummary.totalDays} marked days
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                        Present
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-700">
+                        {attendanceSummary.presentPct}%
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-700">
+                        {attendanceSummary.presentDays} days
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
+                        Absent
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-rose-700">
+                        {attendanceSummary.absentPct}%
+                      </p>
+                      <p className="mt-1 text-xs text-rose-700">
+                        {attendanceSummary.absentDays} days
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">
+                        Leave
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-amber-700">
+                        {attendanceSummary.leaveDays}
+                      </p>
+                      <p className="mt-1 text-xs text-amber-700">
+                        approved / marked
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Total
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-slate-800">
+                        {attendanceSummary.totalDays}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        attendance records
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 max-h-[320px] overflow-auto space-y-3 pr-1">
+                    {attendanceRecords.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {formatDate(item.date)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Marked attendance record
+                            </p>
+                          </div>
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                              item.status === "present" || item.status === "late"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : item.status === "absent"
+                                  ? "bg-rose-100 text-rose-700"
+                                  : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {attendanceRecords.length === 0 && (
+                      <p className="text-sm text-slate-500">
+                        Attendance records will appear here after teachers start marking class attendance.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card-soft">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="card-title">Monthly Attendance Chart</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Month-wise attendance trend for parents.
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                      {monthlyAttendance.length} months
+                    </div>
+                  </div>
+
+                  <div className="mt-4 max-h-[360px] overflow-auto space-y-4 pr-1">
+                    {monthlyAttendance.map((month) => (
+                      <div
+                        key={month.key}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">{month.label}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {month.total} attendance days recorded
+                            </p>
+                          </div>
+                          <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 border border-indigo-100">
+                            Present {month.presentPct}%
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-emerald-700">Present</span>
+                              <span className="text-slate-500">{month.present} days</span>
+                            </div>
+                            <div className="h-2.5 rounded-full bg-emerald-100">
+                              <div
+                                className="h-2.5 rounded-full bg-emerald-500"
+                                style={{ width: `${month.presentPct}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-rose-700">Absent</span>
+                              <span className="text-slate-500">{month.absent} days</span>
+                            </div>
+                            <div className="h-2.5 rounded-full bg-rose-100">
+                              <div
+                                className="h-2.5 rounded-full bg-rose-500"
+                                style={{ width: `${month.absentPct}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-semibold text-amber-700">Leave</span>
+                              <span className="text-slate-500">{month.leave} days</span>
+                            </div>
+                            <div className="h-2.5 rounded-full bg-amber-100">
+                              <div
+                                className="h-2.5 rounded-full bg-amber-500"
+                                style={{ width: `${month.leavePct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {monthlyAttendance.length === 0 && (
+                      <p className="text-sm text-slate-500">
+                        Monthly attendance chart will appear after attendance records are available.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="card-soft">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="card-title">Class Homework</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Daily homework shared for your child&apos;s class and section.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                    {homeworkItems.length} posts
+                  </div>
+                </div>
+
+                <div className="mt-4 max-h-[520px] overflow-auto space-y-3 pr-1">
+                  {homeworkItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{item.title}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {item.subject || "--"} | Teacher: {item.teacherName || "--"}
+                          </p>
+                        </div>
+                        <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-violet-700 border border-violet-100">
+                          Due {formatDate(item.dueDate)}
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {item.description}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full bg-white px-2.5 py-1 border border-slate-200">
+                          Class {item.className || "--"}{item.sectionName ? ` (${item.sectionName})` : ""}
+                        </span>
+                        {item.createdAt && (
+                          <span className="rounded-full bg-white px-2.5 py-1 border border-slate-200">
+                            Posted {formatDateTime(item.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {homeworkItems.length === 0 && (
+                    <p className="text-sm text-slate-500">
+                      No homework has been published yet for this class.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

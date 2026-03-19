@@ -23,13 +23,24 @@ export default function StudentsFeesList({
   onFetchMonthlyFees,
   onSaveMonthlyFees,
   onUpdateStudent,
-  onDeleteStudent
+  onDeleteStudent,
+  isOpen: controlledIsOpen,
+  onToggle
 }) {
   const today = new Date();
   const defaultMonth = today.getMonth() + 1;
   const defaultYear = today.getFullYear();
 
-  const [isOpen, setIsOpen] = useState(true);
+  const [localIsOpen, setLocalIsOpen] = useState(true);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleSectionToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((value) => !value);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [classFilter, setClassFilter] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
@@ -390,7 +401,7 @@ export default function StudentsFeesList({
       closeStudentEditModal();
     } catch (err) {
       console.error(err);
-      alert("Could not update student profile.");
+      alert(`Could not update student profile.\n\n${err?.message || "Unknown error"}`);
     } finally {
       setSavingStudent(false);
     }
@@ -423,7 +434,7 @@ export default function StudentsFeesList({
     <div className="card card-pad">
       <button
         type="button"
-        onClick={() => setIsOpen((value) => !value)}
+        onClick={handleSectionToggle}
         className="w-full flex items-center justify-between text-left"
         aria-expanded={isOpen}
         aria-controls="students-fees-panel"

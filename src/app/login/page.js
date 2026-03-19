@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const router = useRouter();
 
-  const [isParent, setIsParent] = useState(false);
+  const [loginRole, setLoginRole] = useState("admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,26 +35,45 @@ export default function LoginPage() {
       const snap = await getDoc(doc(db, "users", uid));
 
       if (!snap.exists()) {
+        await auth.signOut();
         alert("No role assigned. Contact school admin.");
         return;
       }
 
       const role = snap.data().role;
+      const isActive = snap.data().isActive !== false;
 
-      if (isParent && role !== "parent") {
-        alert("Please use Admin Login for this account.");
+      const isTeacherRole = role === "teacher" || role === "class_teacher";
+
+      if (loginRole === "parent" && role !== "parent") {
+        await auth.signOut();
+        alert("Please use the correct login tab for this account.");
         return;
       }
-      if (!isParent && role !== "admin") {
-        alert("Please use Parent Login for this account.");
+      if (loginRole === "admin" && role !== "admin") {
+        await auth.signOut();
+        alert("Please use the correct login tab for this account.");
+        return;
+      }
+      if (loginRole === "teacher" && !isTeacherRole) {
+        await auth.signOut();
+        alert("Please use the correct login tab for this account.");
+        return;
+      }
+      if (isTeacherRole && !isActive) {
+        await auth.signOut();
+        alert("Teacher account is inactive. Contact school admin.");
         return;
       }
 
       if (role === "admin") {
         router.push("/admin/dashboard");
+      } else if (isTeacherRole) {
+        router.push("/teacher/dashboard");
       } else if (role === "parent") {
         router.push("/parent/dashboard");
       } else {
+        await auth.signOut();
         alert("Invalid role");
       }
 
@@ -81,11 +100,11 @@ export default function LoginPage() {
         </div>
 
         {/* Role Toggle */}
-        <div className="flex mb-6 bg-gray-100 rounded-full p-1">
+        <div className="grid grid-cols-3 mb-6 bg-gray-100 rounded-full p-1 gap-1">
           <button
-            onClick={() => setIsParent(false)}
-            className={`w-1/2 py-2 rounded-full text-sm font-semibold transition ${
-              !isParent
+            onClick={() => setLoginRole("admin")}
+            className={`py-2 rounded-full text-sm font-semibold transition ${
+              loginRole === "admin"
                 ? "bg-indigo-600 text-white shadow"
                 : "text-gray-600"
             }`}
@@ -93,9 +112,19 @@ export default function LoginPage() {
             Admin Login
           </button>
           <button
-            onClick={() => setIsParent(true)}
-            className={`w-1/2 py-2 rounded-full text-sm font-semibold transition ${
-              isParent
+            onClick={() => setLoginRole("teacher")}
+            className={`py-2 rounded-full text-sm font-semibold transition ${
+              loginRole === "teacher"
+                ? "bg-emerald-600 text-white shadow"
+                : "text-gray-600"
+            }`}
+          >
+            Teacher Login
+          </button>
+          <button
+            onClick={() => setLoginRole("parent")}
+            className={`py-2 rounded-full text-sm font-semibold transition ${
+              loginRole === "parent"
                 ? "bg-indigo-600 text-white shadow"
                 : "text-gray-600"
             }`}
@@ -106,12 +135,22 @@ export default function LoginPage() {
 
         {/* Email */}
         <label className="text-sm text-gray-600">
-          {isParent ? "Parent Email" : "Admin Email"}
+          {loginRole === "parent"
+            ? "Parent Email"
+            : loginRole === "teacher"
+              ? "Teacher Email"
+              : "Admin Email"}
         </label>
         <input
           type="email"
           value={email}
-          placeholder={isParent ? "Enter parent email" : "Enter admin email"}
+          placeholder={
+            loginRole === "parent"
+              ? "Enter parent email"
+              : loginRole === "teacher"
+                ? "Enter teacher email"
+                : "Enter admin email"
+          }
           className="w-full mt-1 mb-4 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none"
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -139,8 +178,10 @@ export default function LoginPage() {
               </span>
               Signing in...
             </span>
-          ) : isParent ? (
+          ) : loginRole === "parent" ? (
             "Login as Parent"
+          ) : loginRole === "teacher" ? (
+            "Login as Teacher"
           ) : (
             "Login as Admin"
           )}
