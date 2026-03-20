@@ -305,9 +305,7 @@ export default function MarksheetSection({
           ["fatherName", "Father's Name"],
           ["motherName", "Mother's Name"],
           ["className", "Class"],
-          ["sectionName", "Section"],
-          ["firstTermLabel", "First Term Label"],
-          ["secondTermLabel", "Second Term Label"]
+          ["sectionName", "Section"]
         ].map(([key, label, type]) => (
           <div key={key}>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -344,7 +342,7 @@ export default function MarksheetSection({
           {(form.subjects || []).map((row, index) => (
             <div
               key={`subject-row-${index}`}
-              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.2fr_0.55fr_0.55fr_auto]"
+              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.35fr_0.65fr_auto]"
             >
               <input
                 className={fieldClass}
@@ -354,15 +352,9 @@ export default function MarksheetSection({
               />
               <input
                 className={fieldClass}
-                value={row.firstTerm || ""}
-                onChange={(e) => updateSubjectRow(index, "firstTerm", e.target.value)}
-                placeholder="Term I"
-              />
-              <input
-                className={fieldClass}
-                value={row.secondTerm || ""}
-                onChange={(e) => updateSubjectRow(index, "secondTerm", e.target.value)}
-                placeholder="Term II"
+                value={row.finalTerm || row.secondTerm || row.firstTerm || ""}
+                onChange={(e) => updateSubjectRow(index, "finalTerm", e.target.value)}
+                placeholder="Final Term"
               />
               <button
                 type="button"
@@ -397,7 +389,7 @@ export default function MarksheetSection({
           {(form.personality || []).map((row, index) => (
             <div
               key={`profile-row-${index}`}
-              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.25fr_0.5fr_0.5fr_auto]"
+              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.35fr_0.65fr_auto]"
             >
               <input
                 className={fieldClass}
@@ -407,15 +399,9 @@ export default function MarksheetSection({
               />
               <input
                 className={fieldClass}
-                value={row.firstTerm || ""}
-                onChange={(e) => updateProfileRow(index, "firstTerm", e.target.value)}
-                placeholder="Term I"
-              />
-              <input
-                className={fieldClass}
-                value={row.secondTerm || ""}
-                onChange={(e) => updateProfileRow(index, "secondTerm", e.target.value)}
-                placeholder="Term II"
+                value={row.finalTerm || row.secondTerm || row.firstTerm || ""}
+                onChange={(e) => updateProfileRow(index, "finalTerm", e.target.value)}
+                placeholder="Final Term"
               />
               <button
                 type="button"

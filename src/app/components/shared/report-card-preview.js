@@ -118,17 +118,19 @@ export default function ReportCardPreview({
         <div className="grid gap-4 px-4 py-4 xl:grid-cols-[1.55fr_1fr]">
           <PreviewTable
             title="Scholastic Areas"
-            headers={[
-              "Subjects",
-              reportCard.firstTermLabel || "FIRST TERM",
-              reportCard.secondTermLabel || "SECOND TERM"
-            ]}
-            rows={subjectRows.map((row) => [row.subject, row.firstTerm, row.secondTerm])}
+            headers={["Subjects", reportCard.finalTermLabel || "FINAL TERM"]}
+            rows={subjectRows.map((row) => [
+              row.subject,
+              row.finalTerm || row.secondTerm || row.firstTerm
+            ])}
           />
           <PreviewTable
             title="Personality Profile"
-            headers={["Area", "I", "II"]}
-            rows={personalityRows.map((row) => [row.label, row.firstTerm, row.secondTerm])}
+            headers={["Area", reportCard.finalTermLabel || "FINAL TERM"]}
+            rows={personalityRows.map((row) => [
+              row.label,
+              row.finalTerm || row.secondTerm || row.firstTerm
+            ])}
           />
         </div>
 

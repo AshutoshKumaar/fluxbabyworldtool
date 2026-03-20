@@ -79,28 +79,24 @@ export const toRcInputDate = (value) => {
 
 export const getEmptySubjectRow = () => ({
   subject: "",
-  firstTerm: "",
-  secondTerm: ""
+  finalTerm: ""
 });
 
 export const getEmptyProfileRow = () => ({
   label: "",
-  firstTerm: "",
-  secondTerm: ""
+  finalTerm: ""
 });
 
 const defaultSubjectRows = () =>
   RC_DEFAULT_SUBJECTS.map((subject) => ({
     subject,
-    firstTerm: "",
-    secondTerm: ""
+    finalTerm: ""
   }));
 
 const defaultProfileRows = () =>
   RC_DEFAULT_PERSONALITY.map((label) => ({
     label,
-    firstTerm: "",
-    secondTerm: ""
+    finalTerm: ""
   }));
 
 export const getDefaultReportCard = (student = {}) => ({
@@ -116,9 +112,7 @@ export const getDefaultReportCard = (student = {}) => ({
   className: student.class || "",
   sectionName: student.section || "",
   photoUrl: student.photoUrl || "",
-  firstTermLabel: "FIRST TERM",
-  secondTermLabel: "SECOND TERM",
-  annualLabel: "ANNUAL",
+  finalTermLabel: "FINAL TERM",
   subjects: defaultSubjectRows(),
   personality: defaultProfileRows(),
   workingDays: "",
@@ -149,16 +143,16 @@ export const mergeReportCardData = (student = {}, saved = {}) => {
       Array.isArray(saved.subjects) && saved.subjects.length
         ? saved.subjects.map((row) => ({
             subject: row.subject || "",
-            firstTerm: row.firstTerm || "",
-            secondTerm: row.secondTerm || ""
+            finalTerm:
+              row.finalTerm || row.secondTerm || row.firstTerm || ""
           }))
         : defaults.subjects,
     personality:
       Array.isArray(saved.personality) && saved.personality.length
         ? saved.personality.map((row) => ({
             label: row.label || "",
-            firstTerm: row.firstTerm || "",
-            secondTerm: row.secondTerm || ""
+            finalTerm:
+              row.finalTerm || row.secondTerm || row.firstTerm || ""
           }))
         : defaults.personality
   };
@@ -177,8 +171,7 @@ export const buildReportCardHtml = (report = {}) => {
       (row) => `
         <tr>
           <td>${escapeHtml(row.subject || "--")}</td>
-          <td>${escapeHtml(row.firstTerm || "--")}</td>
-          <td>${escapeHtml(row.secondTerm || "--")}</td>
+          <td>${escapeHtml(row.finalTerm || row.secondTerm || row.firstTerm || "--")}</td>
         </tr>
       `
     )
@@ -189,8 +182,7 @@ export const buildReportCardHtml = (report = {}) => {
       (row) => `
         <tr>
           <td>${escapeHtml(row.label || "--")}</td>
-          <td>${escapeHtml(row.firstTerm || "--")}</td>
-          <td>${escapeHtml(row.secondTerm || "--")}</td>
+          <td>${escapeHtml(row.finalTerm || row.secondTerm || row.firstTerm || "--")}</td>
         </tr>
       `
     )
@@ -566,8 +558,7 @@ export const buildReportCardHtml = (report = {}) => {
                   <thead>
                     <tr>
                       <th>Subjects</th>
-                      <th>${escapeHtml(report.firstTermLabel || "First Term")}</th>
-                      <th>${escapeHtml(report.secondTermLabel || "Second Term")}</th>
+                      <th>${escapeHtml(report.finalTermLabel || "FINAL TERM")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -582,8 +573,7 @@ export const buildReportCardHtml = (report = {}) => {
                   <thead>
                     <tr>
                       <th>Area</th>
-                      <th>I</th>
-                      <th>II</th>
+                      <th>${escapeHtml(report.finalTermLabel || "FINAL TERM")}</th>
                     </tr>
                   </thead>
                   <tbody>
