@@ -1,4 +1,9 @@
-import { formatRcDate, getAttendancePercentage, RC_SCHOOL } from "../../../lib/report-card";
+import {
+  formatRcDate,
+  getAttendancePercentage,
+  getMarksSummary,
+  RC_SCHOOL
+} from "../../../lib/report-card";
 
 export default function ReportCardPreview({
   reportCard,
@@ -22,6 +27,7 @@ export default function ReportCardPreview({
     reportCard.workingDays,
     reportCard.daysPresent
   );
+  const marksSummary = getMarksSummary(subjectRows);
 
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white p-4">
@@ -118,15 +124,16 @@ export default function ReportCardPreview({
         <div className="grid gap-4 px-4 py-4 xl:grid-cols-[1.55fr_1fr]">
           <PreviewTable
             title="Scholastic Areas"
-            headers={["Subjects", reportCard.finalTermLabel || "FINAL TERM"]}
+            headers={["Subjects", "Full Marks", "Obtained Marks"]}
             rows={subjectRows.map((row) => [
               row.subject,
-              row.finalTerm || row.secondTerm || row.firstTerm
+              row.fullMarks || row.maxMarks || "100",
+              row.obtainedMarks || row.finalTerm || row.secondTerm || row.firstTerm
             ])}
           />
           <PreviewTable
             title="Personality Profile"
-            headers={["Area", reportCard.finalTermLabel || "FINAL TERM"]}
+            headers={["Area", "Grade"]}
             rows={personalityRows.map((row) => [
               row.label,
               row.finalTerm || row.secondTerm || row.firstTerm
@@ -143,6 +150,10 @@ export default function ReportCardPreview({
               <MiniStat label="Working Days" value={reportCard.workingDays || "--"} />
               <MiniStat label="Days Present" value={reportCard.daysPresent || "--"} />
               <MiniStat label="Attendance %" value={`${attendancePct}%`} />
+              <MiniStat label="Total Full Marks" value={marksSummary.totalFullMarks || "--"} />
+              <MiniStat label="Total Obtained" value={marksSummary.totalObtainedMarks || "--"} />
+              <MiniStat label="Percentage" value={`${marksSummary.percentage}%`} />
+              <MiniStat label="Grade" value={marksSummary.grade} />
               <MiniStat
                 label="Promoted / Result"
                 value={reportCard.promotedTo || reportCard.resultStatus || "--"}

@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "../../../lib/firebase";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { deleteField, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import ReportCardPreview from "@/app/components/shared/report-card-preview";
 import {
   buildReportCardHtml,
   getDefaultReportCard,
   getEmptyProfileRow,
   getEmptySubjectRow,
+  getGradeFromPercentage,
+  getMarksSummary,
   mergeReportCardData
 } from "../../../lib/report-card";
 
@@ -105,6 +107,7 @@ export default function MarksheetSection({
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [savedAt, setSavedAt] = useState("");
   const [activeTab, setActiveTab] = useState("basic");
+  const marksSummary = useMemo(() => getMarksSummary(form.subjects || []), [form.subjects]);
 
   const filteredStudents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -218,6 +221,9 @@ export default function MarksheetSection({
         doc(db, "reportCards", selectedStudent.id),
         {
           ...form,
+          finalTermLabel: "FINAL TERM",
+          firstTermLabel: deleteField(),
+          secondTermLabel: deleteField(),
           studentId: selectedStudent.id,
           studentName: selectedStudent.name || "",
           className: form.className || selectedStudent.class || "",
@@ -327,7 +333,7 @@ export default function MarksheetSection({
     <div className="mt-5 overflow-hidden rounded-3xl border border-slate-200">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <p className="text-sm font-bold uppercase tracking-[0.16em] text-rose-800">
-          Subject Grades
+          Subject Marks
         </p>
         <button
           type="button"
@@ -342,7 +348,7 @@ export default function MarksheetSection({
           {(form.subjects || []).map((row, index) => (
             <div
               key={`subject-row-${index}`}
-              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.35fr_0.65fr_auto]"
+              className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-3 md:grid-cols-[1.2fr_0.55fr_0.55fr_auto]"
             >
               <input
                 className={fieldClass}
@@ -352,9 +358,15 @@ export default function MarksheetSection({
               />
               <input
                 className={fieldClass}
-                value={row.finalTerm || row.secondTerm || row.firstTerm || ""}
-                onChange={(e) => updateSubjectRow(index, "finalTerm", e.target.value)}
-                placeholder="Final Term"
+                value={row.fullMarks || row.maxMarks || "100"}
+                onChange={(e) => updateSubjectRow(index, "fullMarks", e.target.value)}
+                placeholder="100"
+              />
+              <input
+                className={fieldClass}
+                value={row.obtainedMarks || row.finalTerm || row.secondTerm || row.firstTerm || ""}
+                onChange={(e) => updateSubjectRow(index, "obtainedMarks", e.target.value)}
+                placeholder="Obtained"
               />
               <button
                 type="button"
@@ -366,6 +378,12 @@ export default function MarksheetSection({
             </div>
           ))}
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 border-t border-slate-200 bg-slate-50/60 px-4 py-4 md:grid-cols-4">
+        <SummaryCard label="Total Full Marks" value={marksSummary.totalFullMarks || 0} />
+        <SummaryCard label="Total Obtained" value={marksSummary.totalObtainedMarks || 0} />
+        <SummaryCard label="Percentage" value={`${marksSummary.percentage}%`} />
+        <SummaryCard label="Grade" value={marksSummary.grade} />
       </div>
     </div>
   );
@@ -401,7 +419,7 @@ export default function MarksheetSection({
                 className={fieldClass}
                 value={row.finalTerm || row.secondTerm || row.firstTerm || ""}
                 onChange={(e) => updateProfileRow(index, "finalTerm", e.target.value)}
-                placeholder="Final Term"
+                placeholder="Grade"
               />
               <button
                 type="button"
@@ -437,6 +455,13 @@ export default function MarksheetSection({
             />
           </div>
         ))}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <ReadOnlyMetric label="Total Full Marks" value={marksSummary.totalFullMarks || 0} />
+        <ReadOnlyMetric label="Total Obtained" value={marksSummary.totalObtainedMarks || 0} />
+        <ReadOnlyMetric label="Percentage" value={`${marksSummary.percentage}%`} />
+        <ReadOnlyMetric label="Grade" value={marksSummary.grade || getGradeFromPercentage(0)} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3">
@@ -650,6 +675,28 @@ export default function MarksheetSection({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryCard({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function ReadOnlyMetric({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-rose-50/70 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-base font-bold text-rose-700">{value}</p>
     </div>
   );
 }

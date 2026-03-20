@@ -2,7 +2,7 @@ export const RC_SCHOOL = {
   name: "FLUX BABY WORLD SCHOOL",
   regNo: "Udyam Org. Reg No. BR-16-0009367",
   address: "Rajhatha, Katihar, Bihar - 854105",
-  email: "munnasingh.king@gmail.com",
+  email: "fluxbabyworld@gmail.com",
   phone: "9122946266"
 };
 
@@ -79,7 +79,8 @@ export const toRcInputDate = (value) => {
 
 export const getEmptySubjectRow = () => ({
   subject: "",
-  finalTerm: ""
+  fullMarks: "100",
+  obtainedMarks: ""
 });
 
 export const getEmptyProfileRow = () => ({
@@ -90,7 +91,8 @@ export const getEmptyProfileRow = () => ({
 const defaultSubjectRows = () =>
   RC_DEFAULT_SUBJECTS.map((subject) => ({
     subject,
-    finalTerm: ""
+    fullMarks: "100",
+    obtainedMarks: ""
   }));
 
 const defaultProfileRows = () =>
@@ -112,7 +114,6 @@ export const getDefaultReportCard = (student = {}) => ({
   className: student.class || "",
   sectionName: student.section || "",
   photoUrl: student.photoUrl || "",
-  finalTermLabel: "FINAL TERM",
   subjects: defaultSubjectRows(),
   personality: defaultProfileRows(),
   workingDays: "",
@@ -139,12 +140,18 @@ export const mergeReportCardData = (student = {}, saved = {}) => {
     className: saved.className || student.class || defaults.className,
     sectionName: saved.sectionName || student.section || defaults.sectionName,
     photoUrl: saved.photoUrl || student.photoUrl || defaults.photoUrl,
+    finalTermLabel: "FINAL TERM",
     subjects:
       Array.isArray(saved.subjects) && saved.subjects.length
         ? saved.subjects.map((row) => ({
             subject: row.subject || "",
-            finalTerm:
-              row.finalTerm || row.secondTerm || row.firstTerm || ""
+            fullMarks: String(row.fullMarks || row.maxMarks || "100"),
+            obtainedMarks:
+              row.obtainedMarks ||
+              row.finalTerm ||
+              row.secondTerm ||
+              row.firstTerm ||
+              ""
           }))
         : defaults.subjects,
     personality:
@@ -158,6 +165,45 @@ export const mergeReportCardData = (student = {}, saved = {}) => {
   };
 };
 
+const toMarksNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+export const getGradeFromPercentage = (percentage) => {
+  const pct = Number(percentage || 0);
+  if (pct >= 90) return "A1";
+  if (pct >= 85) return "A";
+  if (pct >= 80) return "B";
+  if (pct >= 70) return "C";
+  if (pct >= 60) return "D";
+  return "E";
+};
+
+export const getMarksSummary = (subjects = []) => {
+  const totalFullMarks = (subjects || []).reduce(
+    (sum, row) => sum + toMarksNumber(row.fullMarks || row.maxMarks || 0),
+    0
+  );
+  const totalObtainedMarks = (subjects || []).reduce(
+    (sum, row) =>
+      sum +
+      toMarksNumber(
+        row.obtainedMarks || row.finalTerm || row.secondTerm || row.firstTerm || 0
+      ),
+    0
+  );
+  const percentage = totalFullMarks
+    ? Number(((totalObtainedMarks / totalFullMarks) * 100).toFixed(2))
+    : 0;
+  return {
+    totalFullMarks,
+    totalObtainedMarks,
+    percentage,
+    grade: getGradeFromPercentage(percentage)
+  };
+};
+
 export const getAttendancePercentage = (workingDays, daysPresent) => {
   const total = Number(workingDays || 0);
   const present = Number(daysPresent || 0);
@@ -166,12 +212,16 @@ export const getAttendancePercentage = (workingDays, daysPresent) => {
 };
 
 export const buildReportCardHtml = (report = {}) => {
+  const marksSummary = getMarksSummary(report.subjects || []);
   const subjectsRows = (report.subjects || [])
     .map(
       (row) => `
         <tr>
           <td>${escapeHtml(row.subject || "--")}</td>
-          <td>${escapeHtml(row.finalTerm || row.secondTerm || row.firstTerm || "--")}</td>
+          <td>${escapeHtml(row.fullMarks || row.maxMarks || "100")}</td>
+          <td>${escapeHtml(
+            row.obtainedMarks || row.finalTerm || row.secondTerm || row.firstTerm || "--"
+          )}</td>
         </tr>
       `
     )
@@ -558,7 +608,8 @@ export const buildReportCardHtml = (report = {}) => {
                   <thead>
                     <tr>
                       <th>Subjects</th>
-                      <th>${escapeHtml(report.finalTermLabel || "FINAL TERM")}</th>
+                      <th>Full Marks</th>
+                      <th>Obtained Marks</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -573,7 +624,7 @@ export const buildReportCardHtml = (report = {}) => {
                   <thead>
                     <tr>
                       <th>Area</th>
-                      <th>${escapeHtml(report.finalTermLabel || "FINAL TERM")}</th>
+                      <th>Grade</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -597,8 +648,20 @@ export const buildReportCardHtml = (report = {}) => {
                       <td>${escapeHtml(report.daysPresent || "--")}</td>
                     </tr>
                     <tr>
-                      <td><strong>Attendance %</strong></td>
-                      <td>${attendancePct}%</td>
+                      <td><strong>Total Full Marks</strong></td>
+                      <td>${escapeHtml(marksSummary.totalFullMarks || "--")}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total Obtained Marks</strong></td>
+                      <td>${escapeHtml(marksSummary.totalObtainedMarks || "--")}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Percentage</strong></td>
+                      <td>${escapeHtml(marksSummary.percentage)}%</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Grade</strong></td>
+                      <td>${escapeHtml(marksSummary.grade)}</td>
                     </tr>
                     <tr>
                       <td><strong>Promoted</strong></td>
@@ -625,7 +688,6 @@ export const buildReportCardHtml = (report = {}) => {
               </div>
               <div class="seal">School Seal</div>
             </div>
-            <div class="small-note">Generated by Flux Baby World School ERP</div>
           </div>
         </div>
         <script>window.onload = () => window.print();</script>

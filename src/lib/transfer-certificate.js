@@ -2,7 +2,7 @@ export const TC_SCHOOL = {
   name: "FLUX BABY WORLD SCHOOL",
   regNo: "U- Org Reg No. BR-16-0009367",
   address: "RAJHATHA, KATIHAR, BIHAR - 854105",
-  email: "munnasingh.king@gmail.com",
+  email: "fluxbabyworld@gmail.com",
   phone: "9122946266"
 };
 
