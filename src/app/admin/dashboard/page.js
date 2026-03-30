@@ -31,8 +31,8 @@ import StudentsFeesList from "@/app/components/admin/students-fees-list";
 import AdmitCardSection from "@/app/components/admin/admit-card-section";
 import TransferCertificateSection from "@/app/components/admin/transfer-certificate-section";
 import MarksheetSection from "@/app/components/admin/marksheet-section";
-// import TeacherManagementSection from "@/app/components/admin/teacher-management-section";
-// import AcademicMonitorSection from "@/app/components/admin/academic-monitor-section";
+import TeacherManagementSection from "@/app/components/admin/teacher-management-section";
+import AcademicMonitorSection from "@/app/components/admin/academic-monitor-section";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -519,9 +519,17 @@ export default function AdminDashboard() {
           onToggle={() => toggleSection("add-student")}
         />
 
-        {/* <TeacherManagementSection students={students} />
+        <TeacherManagementSection
+          students={students}
+          isOpen={activeSection === "teacher-management"}
+          onToggle={() => toggleSection("teacher-management")}
+        />
 
-        <AcademicMonitorSection students={students} /> */}
+        <AcademicMonitorSection
+          students={students}
+          isOpen={activeSection === "academic-monitor"}
+          onToggle={() => toggleSection("academic-monitor")}
+        />
 
         <StudentsFeesList
           students={students}

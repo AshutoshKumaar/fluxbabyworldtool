@@ -75,8 +75,21 @@ function StatCard({ icon: Icon, label, value, accent }) {
   );
 }
 
-export default function AcademicMonitorSection({ students = [] }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AcademicMonitorSection({
+  students = [],
+  isOpen: controlledIsOpen,
+  onToggle
+}) {
+  const [localIsOpen, setLocalIsOpen] = useState(false);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleSectionToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((prev) => !prev);
+  };
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState("");
   const [teacherAttendanceItems, setTeacherAttendanceItems] = useState([]);
@@ -346,7 +359,7 @@ export default function AcademicMonitorSection({ students = [] }) {
         </div>
         <button
           type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
+          onClick={handleSectionToggle}
           className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
           aria-label={isOpen ? "Collapse Academic Monitoring section" : "Expand Academic Monitoring section"}
         >
@@ -358,6 +371,13 @@ export default function AcademicMonitorSection({ students = [] }) {
 
       {isOpen && (
         <div className="mt-6 space-y-6">
+          <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-4 text-sm text-cyan-800">
+            <p className="font-semibold text-cyan-900">How teacher attendance verification works</p>
+            <p className="mt-1 text-sm leading-6">
+              Office QR + school location policy is controlled here. Teacher attendance first comes here as pending, and only after admin verification does it become final school attendance.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard
               icon={ShieldCheck}

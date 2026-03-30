@@ -45,6 +45,12 @@ const normalizeList = (value) => {
 const classSectionKey = (className, section) =>
   `${String(className || "").trim()}__${String(section || "").trim()}`;
 
+const formatClassGroupLabel = (groupKey) => {
+  const [className = "", sectionName = ""] = String(groupKey || "").split("__");
+  if (!className) return "Not assigned";
+  return `Class ${className}${sectionName ? ` (${sectionName})` : ""}`;
+};
+
 const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
   const toRad = (value) => (value * Math.PI) / 180;
   const earthRadius = 6371000;
@@ -98,6 +104,7 @@ export default function TeacherDashboardPage() {
   const [role, setRole] = useState("teacher");
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [students, setStudents] = useState([]);
+  const [activeWorkspace, setActiveWorkspace] = useState("teacher-attendance");
 
   const [selectedClassKey, setSelectedClassKey] = useState("");
   const [studentAttendanceDate, setStudentAttendanceDate] = useState(
@@ -297,6 +304,20 @@ export default function TeacherDashboardPage() {
         String(student.section || "") === sectionName
     );
   }, [students, selectedClassKey]);
+
+  const studentAttendanceSummary = useMemo(() => {
+    const total = selectedStudents.length;
+    const summary = { present: 0, absent: 0, late: 0, leave: 0, total };
+    selectedStudents.forEach((student) => {
+      const status = studentAttendanceMap[student.id]?.status || "present";
+      if (summary[status] !== undefined) {
+        summary[status] += 1;
+      }
+    });
+    summary.marked = total;
+    summary.presentPct = total ? Math.round(((summary.present + summary.late) / total) * 100) : 0;
+    return summary;
+  }, [selectedStudents, studentAttendanceMap]);
 
   const isQrRequired = attendancePolicy?.requireQr && !!attendancePolicy?.officeQrCode;
   const isQrVerified = !isQrRequired || attendanceQrInput === attendancePolicy?.officeQrCode;
@@ -636,13 +657,21 @@ export default function TeacherDashboardPage() {
           sectionName,
           date: studentAttendanceDate,
           records,
+          teacherId: currentUid,
+          teacherName: teacherProfile?.teacherName || "Teacher",
+          totalStudents: selectedStudents.length,
+          presentCount: Object.values(records).filter(
+            (item) => item.status === "present" || item.status === "late"
+          ).length,
+          absentCount: Object.values(records).filter((item) => item.status === "absent").length,
+          leaveCount: Object.values(records).filter((item) => item.status === "leave").length,
           updatedAt: serverTimestamp(),
           markedBy: currentUid
         },
         { merge: true }
       );
 
-      alert("Student attendance saved.");
+      alert("Student attendance saved successfully.");
     } catch (err) {
       console.error(err);
       alert("Could not save student attendance.");
@@ -658,7 +687,7 @@ export default function TeacherDashboardPage() {
       return;
     }
     if (isQrRequired && !isQrVerified) {
-      alert("Enter the correct office QR/code before submitting attendance.");
+      alert("Scan the school office QR before submitting attendance.");
       return;
     }
     if (isGeoRequired && !geoCheck.checked) {
@@ -799,13 +828,61 @@ export default function TeacherDashboardPage() {
     <div className="min-h-screen bg-slate-100">
       <TeacherNavbar isClassTeacher={role === "class_teacher"} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-emerald-700">
-            Teacher Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Mark attendance, publish homework, and manage your assigned classes.
-          </p>
+        <div className="mb-6 rounded-[28px] border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 px-5 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-emerald-700">
+                Teacher Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Mark attendance, publish homework, and manage your assigned classes with a cleaner workflow.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:min-w-[320px]">
+              <div className="rounded-2xl bg-white px-3 py-3">
+                <p className="uppercase tracking-[0.16em] text-slate-400">Teacher</p>
+                <p className="mt-1 font-semibold text-slate-800">{teacherProfile?.teacherName || "Teacher"}</p>
+              </div>
+              <div className="rounded-2xl bg-white px-3 py-3">
+                <p className="uppercase tracking-[0.16em] text-slate-400">Role</p>
+                <p className="mt-1 font-semibold text-slate-800">
+                  {role === "class_teacher" ? "Class Teacher" : "Teacher"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white px-3 py-3">
+                <p className="uppercase tracking-[0.16em] text-slate-400">Primary Class</p>
+                <p className="mt-1 font-semibold text-slate-800">
+                  {formatClassGroupLabel(teacherProfile?.primaryClassGroup)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white px-3 py-3">
+                <p className="uppercase tracking-[0.16em] text-slate-400">Assigned Groups</p>
+                <p className="mt-1 font-semibold text-slate-800">{classOptions.length}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 flex flex-wrap gap-2">
+          {[
+            ["teacher-attendance", "Teacher Attendance"],
+            ["student-attendance", "Student Attendance"],
+            ["homework", "Homework"],
+            ["overview", "Overview"]
+          ].map(([tabId, label]) => (
+            <button
+              key={tabId}
+              type="button"
+              onClick={() => setActiveWorkspace(tabId)}
+              className={`rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                activeWorkspace === tabId
+                  ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_10px_24px_rgba(16,185,129,0.2)]"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -835,8 +912,25 @@ export default function TeacherDashboardPage() {
           />
         </div>
 
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-6">
-          <div className="space-y-6">
+        <div
+          className={`mt-6 grid grid-cols-1 gap-6 ${
+            activeWorkspace === "overview" || activeWorkspace === "homework"
+              ? "xl:grid-cols-[0.9fr_1.1fr]"
+              : ""
+          }`}
+        >
+          {(activeWorkspace === "overview" ||
+            activeWorkspace === "teacher-attendance" ||
+            activeWorkspace === "homework") && (
+            <div className="space-y-6">
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-emerald-700">
+            Teacher Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Mark attendance, publish homework, and manage your assigned classes.
+          </p>
+        </div>
             <div className="card-soft">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-sm">

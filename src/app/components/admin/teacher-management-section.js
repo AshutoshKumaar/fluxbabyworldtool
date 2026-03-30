@@ -59,8 +59,21 @@ function StatPill({ icon: Icon, label }) {
   );
 }
 
-export default function TeacherManagementSection({ students = [] }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function TeacherManagementSection({
+  students = [],
+  isOpen: controlledIsOpen,
+  onToggle
+}) {
+  const [localIsOpen, setLocalIsOpen] = useState(false);
+  const isOpen =
+    typeof controlledIsOpen === "boolean" ? controlledIsOpen : localIsOpen;
+  const handleSectionToggle = () => {
+    if (typeof onToggle === "function") {
+      onToggle();
+      return;
+    }
+    setLocalIsOpen((prev) => !prev);
+  };
   const [teachers, setTeachers] = useState([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const [creatingTeacher, setCreatingTeacher] = useState(false);
@@ -90,6 +103,18 @@ export default function TeacherManagementSection({ students = [] }) {
   });
   const [editSelectedGroups, setEditSelectedGroups] = useState([]);
 
+  const teacherStats = useMemo(() => {
+    const total = teachers.length;
+    const active = teachers.filter((item) => item.isActive !== false).length;
+    const classTeachers = teachers.filter((item) => item.role === "class_teacher").length;
+    const assignedGroups = new Set(
+      teachers.flatMap((item) =>
+        Array.isArray(item.assignedClassGroups) ? item.assignedClassGroups : []
+      )
+    ).size;
+    return { total, active, classTeachers, assignedGroups };
+  }, [teachers]);
+
   const availableGroups = useMemo(() => {
     const map = new Map();
     students.forEach((student) => {
@@ -105,7 +130,21 @@ export default function TeacherManagementSection({ students = [] }) {
         label: `Class ${className}${sectionName ? ` (${sectionName})` : ""}`
       });
     });
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    const rankClass = (value) => {
+      const normalized = String(value || "").trim().toLowerCase();
+      if (normalized === "pre nursery" || normalized === "pre-nursery" || normalized === "pre nur.") return -2;
+      if (normalized === "nursery") return -1;
+      if (normalized === "lkg") return 0;
+      if (normalized === "ukg") return 1;
+      const numeric = Number(normalized);
+      return Number.isFinite(numeric) ? numeric + 10 : 999;
+    };
+
+    return Array.from(map.values()).sort((a, b) => {
+      const diff = rankClass(a.className) - rankClass(b.className);
+      if (diff !== 0) return diff;
+      return String(a.sectionName || "").localeCompare(String(b.sectionName || ""));
+    });
   }, [students]);
 
   const fetchTeachers = async () => {
@@ -495,7 +534,7 @@ export default function TeacherManagementSection({ students = [] }) {
         </div>
         <button
           type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
+          onClick={handleSectionToggle}
           className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
           aria-label={
             isOpen
@@ -510,7 +549,35 @@ export default function TeacherManagementSection({ students = [] }) {
       </div>
 
       {isOpen && (
-        <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="mt-6 space-y-6">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                Total Teachers
+              </p>
+              <p className="mt-2 text-2xl font-bold text-emerald-700">{teacherStats.total}</p>
+            </div>
+            <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-600">
+                Active Accounts
+              </p>
+              <p className="mt-2 text-2xl font-bold text-sky-700">{teacherStats.active}</p>
+            </div>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-600">
+                Class Teachers
+              </p>
+              <p className="mt-2 text-2xl font-bold text-amber-700">{teacherStats.classTeachers}</p>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">
+                Covered Groups
+              </p>
+              <p className="mt-2 text-2xl font-bold text-violet-700">{teacherStats.assignedGroups}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="card-soft">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -648,15 +715,15 @@ export default function TeacherManagementSection({ students = [] }) {
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Assign Class Groups
-              </label>
+              <div className="mt-4">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Assign Class Groups
+                </label>
               <p className="mb-2 text-xs text-slate-500">
                 Select every class-section this teacher actually teaches.
               </p>
-              <div className="max-h-[220px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="max-h-[220px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {availableGroups.map((group) => (
                     <button
                       key={group.key}
@@ -671,9 +738,13 @@ export default function TeacherManagementSection({ students = [] }) {
                       {group.label}
                     </button>
                   ))}
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Selected groups:{" "}
+                  <span className="font-semibold text-slate-700">{selectedGroups.length}</span>
+                </p>
               </div>
-            </div>
 
             {teacherForm.role === "class_teacher" && (
               <div className="mt-4">
@@ -905,6 +976,7 @@ export default function TeacherManagementSection({ students = [] }) {
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
 
