@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
@@ -120,6 +120,10 @@ export default function TeacherDashboardPage() {
   const [teacherAttendanceNote, setTeacherAttendanceNote] = useState("");
   const [savingTeacherAttendance, setSavingTeacherAttendance] = useState(false);
   const [teacherAttendanceRecord, setTeacherAttendanceRecord] = useState(null);
+  const [teacherAttendanceHistory, setTeacherAttendanceHistory] = useState([]);
+  const [teacherHistoryMonth, setTeacherHistoryMonth] = useState(
+    toInputDate(new Date()).slice(0, 7)
+  );
   const [attendancePolicy, setAttendancePolicy] = useState(null);
   const [attendanceQrInput, setAttendanceQrInput] = useState("");
   const [geoCheck, setGeoCheck] = useState({
@@ -319,17 +323,24 @@ export default function TeacherDashboardPage() {
     return summary;
   }, [selectedStudents, studentAttendanceMap]);
 
+  const teacherAttendanceNeedsNote =
+    teacherAttendanceStatus === "late" || teacherAttendanceStatus === "leave";
+  const teacherAttendanceNeedsSecurity = teacherAttendanceStatus === "present";
+  const isTeacherAttendanceLocked = Boolean(teacherAttendanceRecord?.date);
+
   const isQrRequired = attendancePolicy?.requireQr && !!attendancePolicy?.officeQrCode;
   const isQrVerified = !isQrRequired || attendanceQrInput === attendancePolicy?.officeQrCode;
   const isGeoRequired = !!attendancePolicy?.enforceGeo;
   const isGeoVerified = !isGeoRequired || geoCheck.withinRadius;
-  const attendanceReadyForSubmit = isQrVerified && isGeoVerified;
+  const attendanceReadyForSubmit = teacherAttendanceNeedsSecurity
+    ? isQrVerified && isGeoVerified
+    : Boolean(teacherAttendanceNote.trim());
   const officeQrPayload = useMemo(() => {
     if (!attendancePolicy?.officeQrCode) return "";
     return `FBW-TEACHER-ATTENDANCE|OFFICE|${attendancePolicy.officeQrCode}`;
   }, [attendancePolicy?.officeQrCode]);
 
-  const stopQrScanner = () => {
+  const stopQrScanner = useCallback(() => {
     if (scanFrameRef.current) {
       cancelAnimationFrame(scanFrameRef.current);
       scanFrameRef.current = null;
@@ -344,9 +355,9 @@ export default function TeacherDashboardPage() {
       videoRef.current.pause?.();
       videoRef.current.srcObject = null;
     }
-  };
+  }, []);
 
-  const parseScannedQrValue = (value) => {
+  const parseScannedQrValue = useCallback((value) => {
     const rawValue = String(value || "").trim();
     if (!rawValue) return "";
     if (rawValue === attendancePolicy?.officeQrCode) return attendancePolicy.officeQrCode;
@@ -355,9 +366,9 @@ export default function TeacherDashboardPage() {
       return rawValue.split("|").slice(2).join("|").trim();
     }
     return "";
-  };
+  }, [attendancePolicy?.officeQrCode, officeQrPayload]);
 
-  const fetchStudentAttendance = async () => {
+  const fetchStudentAttendance = useCallback(async () => {
     if (!selectedClassKey || !studentAttendanceDate) return;
     try {
       const attendanceId = `${studentAttendanceDate}_${selectedClassKey}`;
@@ -367,9 +378,9 @@ export default function TeacherDashboardPage() {
       console.error(err);
       setStudentAttendanceMap({});
     }
-  };
+  }, [selectedClassKey, studentAttendanceDate]);
 
-  const fetchTeacherAttendance = async () => {
+  const fetchTeacherAttendance = useCallback(async () => {
     if (!currentUid || !teacherAttendanceDate) return;
     try {
       const attendanceId = `${currentUid}_${teacherAttendanceDate}`;
@@ -421,9 +432,30 @@ export default function TeacherDashboardPage() {
         error: ""
       });
     }
-  };
+  }, [currentUid, teacherAttendanceDate]);
 
-  const fetchHomework = async () => {
+  const fetchTeacherAttendanceHistory = useCallback(async () => {
+    if (!currentUid) return;
+    try {
+      const snap = await getDocs(collection(db, "teacherAttendance"));
+      const items = snap.docs
+        .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+        .filter((item) => item.teacherId === currentUid)
+        .sort((a, b) => {
+          const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+          if (dateCompare !== 0) return dateCompare;
+          const aTime = a.updatedAt?.toMillis?.() || 0;
+          const bTime = b.updatedAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+      setTeacherAttendanceHistory(items);
+    } catch (err) {
+      console.error(err);
+      setTeacherAttendanceHistory([]);
+    }
+  }, [currentUid]);
+
+  const fetchHomework = useCallback(async () => {
     if (!currentUid) return;
     try {
       const snap = await getDocs(
@@ -437,7 +469,7 @@ export default function TeacherDashboardPage() {
       console.error(err);
       setHomeworkItems([]);
     }
-  };
+  }, [currentUid]);
 
   const runGeoCheck = () => {
     if (!attendancePolicy?.enforceGeo) {
@@ -508,15 +540,19 @@ export default function TeacherDashboardPage() {
 
   useEffect(() => {
     fetchStudentAttendance();
-  }, [selectedClassKey, studentAttendanceDate]);
+  }, [fetchStudentAttendance]);
 
   useEffect(() => {
     fetchTeacherAttendance();
-  }, [currentUid, teacherAttendanceDate]);
+  }, [fetchTeacherAttendance]);
 
   useEffect(() => {
     fetchHomework();
-  }, [currentUid]);
+  }, [fetchHomework]);
+
+  useEffect(() => {
+    fetchTeacherAttendanceHistory();
+  }, [fetchTeacherAttendanceHistory]);
 
   useEffect(() => {
     if (!isScannerOpen) {
@@ -614,14 +650,16 @@ export default function TeacherDashboardPage() {
     attendancePolicy?.officeQrCode,
     attendancePolicy?.requireQr,
     isScannerOpen,
-    officeQrPayload
+    officeQrPayload,
+    parseScannedQrValue,
+    stopQrScanner
   ]);
 
   useEffect(() => {
     return () => {
       stopQrScanner();
     };
-  }, []);
+  }, [stopQrScanner]);
 
   const updateStudentStatus = (studentId, status) => {
     setStudentAttendanceMap((prev) => ({
@@ -682,43 +720,64 @@ export default function TeacherDashboardPage() {
 
   const saveTeacherAttendance = async () => {
     if (!currentUid || !teacherAttendanceDate) return;
-    if (attendancePolicy?.requireQr && !attendancePolicy?.officeQrCode) {
+    if (isTeacherAttendanceLocked) {
+      alert("Attendance for this date is already submitted. You can mark again on the next date only.");
+      return;
+    }
+    if (teacherAttendanceNeedsSecurity && attendancePolicy?.requireQr && !attendancePolicy?.officeQrCode) {
       alert("School office QR/code is not configured yet. Contact admin.");
       return;
     }
-    if (isQrRequired && !isQrVerified) {
+    if (teacherAttendanceNeedsSecurity && isQrRequired && !isQrVerified) {
       alert("Scan the school office QR before submitting attendance.");
       return;
     }
-    if (isGeoRequired && !geoCheck.checked) {
+    if (teacherAttendanceNeedsSecurity && isGeoRequired && !geoCheck.checked) {
       alert("Run geolocation verification before submitting attendance.");
       return;
     }
-    if (isGeoRequired && !isGeoVerified) {
+    if (teacherAttendanceNeedsSecurity && isGeoRequired && !isGeoVerified) {
       alert("You are outside the allowed school attendance radius.");
+      return;
+    }
+    if (teacherAttendanceNeedsNote && !teacherAttendanceNote.trim()) {
+      alert("Please add a note for late or leave attendance.");
       return;
     }
     setSavingTeacherAttendance(true);
     try {
-      await setDoc(
-        doc(db, "teacherAttendance", `${currentUid}_${teacherAttendanceDate}`),
-        {
-          teacherId: currentUid,
-          teacherName: teacherProfile?.teacherName || "Teacher",
-          status: teacherAttendanceStatus,
-          note: teacherAttendanceNote,
-          date: teacherAttendanceDate,
-          qrCode: attendanceQrInput,
-          qrVerified: isQrVerified,
-          expectedWifiName: attendancePolicy?.schoolWifiName || "",
-          geoCheck: {
+      const normalizedGeoCheck = teacherAttendanceNeedsSecurity
+        ? {
             checked: geoCheck.checked,
             withinRadius: geoCheck.withinRadius,
             distanceMeters: geoCheck.distanceMeters,
             latitude: geoCheck.latitude,
             longitude: geoCheck.longitude,
             error: geoCheck.error || ""
-          },
+          }
+        : {
+            checked: false,
+            withinRadius: false,
+            distanceMeters: null,
+            latitude: null,
+            longitude: null,
+            error: ""
+          };
+
+      await setDoc(
+        doc(db, "teacherAttendance", `${currentUid}_${teacherAttendanceDate}`),
+        {
+          teacherId: currentUid,
+          teacherName: teacherProfile?.teacherName || "Teacher",
+          status: teacherAttendanceStatus,
+          note: teacherAttendanceNeedsNote ? teacherAttendanceNote : "",
+          date: teacherAttendanceDate,
+          qrCode: teacherAttendanceNeedsSecurity ? attendanceQrInput : "",
+          qrVerified: teacherAttendanceNeedsSecurity ? isQrVerified : false,
+          expectedWifiName: teacherAttendanceNeedsSecurity
+            ? attendancePolicy?.schoolWifiName || ""
+            : "",
+          geoCheck: normalizedGeoCheck,
           verificationStatus: "pending",
           verificationLabel: "Pending Admin Review",
           verifiedBy: "",
@@ -729,22 +788,18 @@ export default function TeacherDashboardPage() {
       );
       setTeacherAttendanceRecord({
         status: teacherAttendanceStatus,
-        note: teacherAttendanceNote,
+        note: teacherAttendanceNeedsNote ? teacherAttendanceNote : "",
         date: teacherAttendanceDate,
-        qrCode: attendanceQrInput,
-        qrVerified: isQrVerified,
-        expectedWifiName: attendancePolicy?.schoolWifiName || "",
-        geoCheck: {
-          checked: geoCheck.checked,
-          withinRadius: geoCheck.withinRadius,
-          distanceMeters: geoCheck.distanceMeters,
-          latitude: geoCheck.latitude,
-          longitude: geoCheck.longitude,
-          error: geoCheck.error || ""
-        },
+        qrCode: teacherAttendanceNeedsSecurity ? attendanceQrInput : "",
+        qrVerified: teacherAttendanceNeedsSecurity ? isQrVerified : false,
+        expectedWifiName: teacherAttendanceNeedsSecurity
+          ? attendancePolicy?.schoolWifiName || ""
+          : "",
+        geoCheck: normalizedGeoCheck,
         verificationStatus: "pending",
         verificationLabel: "Pending Admin Review"
       });
+      await fetchTeacherAttendanceHistory();
       alert("Attendance submitted for admin verification.");
     } catch (err) {
       console.error(err);
@@ -791,6 +846,40 @@ export default function TeacherDashboardPage() {
       setSavingHomework(false);
     }
   };
+
+  const teacherMonthlySummary = useMemo(() => {
+    const items = teacherAttendanceHistory.filter((item) =>
+      String(item.date || "").startsWith(teacherHistoryMonth)
+    );
+
+    return {
+      total: items.length,
+      present: items.filter(
+        (item) =>
+          item.verificationStatus === "verified" && item.status === "present"
+      ).length,
+      late: items.filter(
+        (item) =>
+          item.verificationStatus === "verified" && item.status === "late"
+      ).length,
+      leave: items.filter(
+        (item) =>
+          item.verificationStatus === "verified" && item.status === "leave"
+      ).length,
+      pending: items.filter((item) => item.verificationStatus === "pending").length,
+      rejected: items.filter((item) => item.verificationStatus === "rejected").length
+    };
+  }, [teacherAttendanceHistory, teacherHistoryMonth]);
+
+  const showLeftColumn =
+    activeWorkspace === "overview" ||
+    activeWorkspace === "teacher-attendance" ||
+    activeWorkspace === "homework";
+  const showRightColumn =
+    activeWorkspace === "overview" ||
+    activeWorkspace === "teacher-attendance" ||
+    activeWorkspace === "student-attendance" ||
+    activeWorkspace === "homework";
 
   if (loading) {
     return (
@@ -914,23 +1003,13 @@ export default function TeacherDashboardPage() {
 
         <div
           className={`mt-6 grid grid-cols-1 gap-6 ${
-            activeWorkspace === "overview" || activeWorkspace === "homework"
-              ? "xl:grid-cols-[0.9fr_1.1fr]"
-              : ""
+            showLeftColumn && showRightColumn ? "xl:grid-cols-[0.92fr_1.08fr]" : ""
           }`}
         >
-          {(activeWorkspace === "overview" ||
-            activeWorkspace === "teacher-attendance" ||
-            activeWorkspace === "homework") && (
+          {showLeftColumn && (
             <div className="space-y-6">
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-emerald-700">
-            Teacher Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Mark attendance, publish homework, and manage your assigned classes.
-          </p>
-        </div>
+            {(activeWorkspace === "overview" ||
+              activeWorkspace === "teacher-attendance") && (
             <div className="card-soft">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-sm">
@@ -974,26 +1053,55 @@ export default function TeacherDashboardPage() {
                 </div>
               </div>
 
-              <div className="mt-3">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Note
-                </label>
-                <textarea
-                  value={teacherAttendanceNote}
-                  onChange={(e) => setTeacherAttendanceNote(e.target.value)}
-                  className="min-h-[96px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Optional note for today"
-                />
-              </div>
+              {isTeacherAttendanceLocked ? (
+                <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-900">
+                        Attendance already submitted for {teacherAttendanceDate}
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-800">
+                        You do not need to scan again for this date. This section will open again automatically when you switch to the next date.
+                      </p>
+                    </div>
+                    <StatusPill value={teacherAttendanceRecord?.status || teacherAttendanceStatus} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-emerald-800">
+                    <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1">
+                      Review: {teacherAttendanceRecord?.verificationLabel || "Pending Admin Review"}
+                    </span>
+                    {teacherAttendanceRecord?.updatedAt && (
+                      <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1">
+                        Submitted {formatDateTime(teacherAttendanceRecord.updatedAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
+              {!isTeacherAttendanceLocked && teacherAttendanceNeedsNote ? (
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Note
+                  </label>
+                  <textarea
+                    value={teacherAttendanceNote}
+                    onChange={(e) => setTeacherAttendanceNote(e.target.value)}
+                    className="min-h-[96px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    placeholder="Please write the reason for late arrival or leave"
+                  />
+                </div>
+              ) : null}
+
+              {!isTeacherAttendanceLocked && teacherAttendanceNeedsSecurity ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
-                      Attendance Security Checks
+                      Teacher Attendance Security
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Teacher must scan the fixed office QR and verify current school location before attendance submission.
+                      You must scan the QR pasted in the school office and verify your current school location before attendance submission.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
@@ -1039,12 +1147,12 @@ export default function TeacherDashboardPage() {
                             <p className="text-sm font-semibold text-slate-900">
                               {isQrVerified
                                 ? "Office QR scanned successfully"
-                                : "Scan the office QR from school office"}
+                                : "Scan the school office QR"}
                             </p>
                             <p className="text-xs text-slate-500">
                               {isQrVerified
                                 ? `QR code verified: ${attendanceQrInput}`
-                                : "Manual code entry is disabled. Camera scan is required."}
+                                : "Manual code entry is disabled. Only camera scan from the office QR is allowed."}
                             </p>
                           </div>
                         </div>
@@ -1078,7 +1186,7 @@ export default function TeacherDashboardPage() {
                           </div>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                             <p className="text-xs text-slate-300">
-                              Point your camera at the office QR pasted in school office.
+                              Point your camera at the QR pasted in the school office and keep it inside the scan box.
                             </p>
                             <button
                               type="button"
@@ -1139,10 +1247,11 @@ export default function TeacherDashboardPage() {
                 )}
                 {!attendanceReadyForSubmit && (
                   <p className="mt-2 text-xs text-amber-700">
-                    Scan the office QR and complete location verification before attendance submission.
+                    Scan the office QR and complete location verification first. After that, your attendance will go to admin for final approval.
                   </p>
                 )}
               </div>
+              ) : null}
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-slate-500">
@@ -1167,17 +1276,24 @@ export default function TeacherDashboardPage() {
                 <button
                   type="button"
                   onClick={saveTeacherAttendance}
-                  disabled={savingTeacherAttendance || !attendanceReadyForSubmit}
+                  disabled={savingTeacherAttendance || !attendanceReadyForSubmit || isTeacherAttendanceLocked}
                   className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {savingTeacherAttendance ? "Saving..." : "Save My Attendance"}
+                  {isTeacherAttendanceLocked
+                    ? "Already Submitted"
+                    : savingTeacherAttendance
+                      ? "Saving..."
+                      : "Save My Attendance"}
                 </button>
               </div>
               <p className="mt-3 text-xs text-slate-500">
                 Self-marked teacher attendance remains pending until admin verifies it.
               </p>
             </div>
+            )}
 
+            {(activeWorkspace === "overview" ||
+              activeWorkspace === "homework") && (
             <div className="card-soft">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
@@ -1297,9 +1413,140 @@ export default function TeacherDashboardPage() {
                 </button>
               </div>
             </div>
+            )}
           </div>
+          )}
 
+          {showRightColumn && (
           <div className="space-y-6">
+            {activeWorkspace === "teacher-attendance" && (
+              <>
+                <div className="card-soft">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-bold text-slate-900">Monthly Attendance Summary</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Review your verified attendance counts and pending reviews month by month.
+                      </p>
+                    </div>
+                    <div className="min-w-[180px]">
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        Month
+                      </label>
+                      <input
+                        type="month"
+                        value={teacherHistoryMonth}
+                        onChange={(e) => setTeacherHistoryMonth(e.target.value)}
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">Present</p>
+                      <p className="mt-2 text-2xl font-bold text-emerald-700">{teacherMonthlySummary.present}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-600">Late</p>
+                      <p className="mt-2 text-2xl font-bold text-amber-700">{teacherMonthlySummary.late}</p>
+                    </div>
+                    <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-600">Leave</p>
+                      <p className="mt-2 text-2xl font-bold text-cyan-700">{teacherMonthlySummary.leave}</p>
+                    </div>
+                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Pending</p>
+                      <p className="mt-2 text-2xl font-bold text-violet-700">{teacherMonthlySummary.pending}</p>
+                    </div>
+                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-600">Rejected</p>
+                      <p className="mt-2 text-2xl font-bold text-rose-700">{teacherMonthlySummary.rejected}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-soft">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-bold text-slate-900">My Attendance History</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        See date-wise attendance status, submission time, and admin verification result.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                      {teacherAttendanceHistory.length} records
+                    </span>
+                  </div>
+
+                  <div className="mt-4 max-h-[520px] space-y-3 overflow-auto pr-1">
+                    {teacherAttendanceHistory
+                      .filter((item) => String(item.date || "").startsWith(teacherHistoryMonth))
+                      .map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">{item.date || "--"}</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Submitted {formatDateTime(item.updatedAt)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <StatusPill value={item.status} />
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                  item.verificationStatus === "verified"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : item.verificationStatus === "rejected"
+                                      ? "bg-rose-100 text-rose-700"
+                                      : "bg-amber-100 text-amber-700"
+                                }`}
+                              >
+                                {item.verificationLabel ||
+                                  (item.verificationStatus === "verified"
+                                    ? "Verified by Admin"
+                                    : item.verificationStatus === "rejected"
+                                      ? "Rejected by Admin"
+                                      : "Pending Admin Review")}
+                              </span>
+                            </div>
+                          </div>
+
+                          {item.note ? (
+                            <p className="mt-3 text-sm text-slate-600">{item.note}</p>
+                          ) : null}
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                            {item.verifiedAt ? (
+                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                                Reviewed {formatDateTime(item.verifiedAt)}
+                              </span>
+                            ) : null}
+                            {item.geoCheck?.distanceMeters || item.geoCheck?.distanceMeters === 0 ? (
+                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                                Distance {item.geoCheck.distanceMeters} m
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    {teacherAttendanceHistory.filter((item) =>
+                      String(item.date || "").startsWith(teacherHistoryMonth)
+                    ).length === 0 && (
+                      <p className="text-sm text-slate-500">
+                        No teacher attendance history found for this month.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {(activeWorkspace === "overview" ||
+              activeWorkspace === "student-attendance") && (
             <div className="card-soft">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-sm">
@@ -1309,6 +1556,41 @@ export default function TeacherDashboardPage() {
                   <p className="text-lg font-bold text-slate-900">Student Attendance</p>
                   <p className="text-sm text-slate-500">
                     Mark class-wise attendance for your assigned students.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                    Present
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-700">
+                    {studentAttendanceSummary.present}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-600">
+                    Absent
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-rose-700">
+                    {studentAttendanceSummary.absent}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-600">
+                    Leave
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-amber-700">
+                    {studentAttendanceSummary.leave}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Present %
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-slate-800">
+                    {studentAttendanceSummary.presentPct}%
                   </p>
                 </div>
               </div>
@@ -1403,7 +1685,10 @@ export default function TeacherDashboardPage() {
                 </button>
               </div>
             </div>
+            )}
 
+            {(activeWorkspace === "overview" ||
+              activeWorkspace === "homework") && (
             <div className="card-soft">
               <p className="text-lg font-bold text-slate-900">Published Homework</p>
               <p className="mt-1 text-sm text-slate-500">
@@ -1439,7 +1724,9 @@ export default function TeacherDashboardPage() {
                 )}
               </div>
             </div>
+            )}
           </div>
+          )}
         </div>
       </div>
     </div>

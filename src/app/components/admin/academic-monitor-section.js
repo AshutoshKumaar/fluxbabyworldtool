@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   collection,
   doc,
@@ -96,6 +97,9 @@ export default function AcademicMonitorSection({
   const [homeworkItems, setHomeworkItems] = useState([]);
   const [studentAttendanceItems, setStudentAttendanceItems] = useState([]);
   const [selectedDate, setSelectedDate] = useState(toInputDate(new Date()));
+  const [teacherSummaryMonth, setTeacherSummaryMonth] = useState(
+    toInputDate(new Date()).slice(0, 7)
+  );
   const [selectedClassKey, setSelectedClassKey] = useState("");
   const [policySaving, setPolicySaving] = useState(false);
   const [policyForm, setPolicyForm] = useState({
@@ -201,6 +205,45 @@ export default function AcademicMonitorSection({
       ),
     [teacherAttendanceItems]
   );
+
+  const teacherMonthlySummary = useMemo(() => {
+    const summaryMap = new Map();
+
+    teacherAttendanceItems
+      .filter((item) => String(item.date || "").startsWith(teacherSummaryMonth))
+      .forEach((item) => {
+        const key = item.teacherId || item.teacherName || item.id;
+        if (!summaryMap.has(key)) {
+          summaryMap.set(key, {
+            teacherId: item.teacherId || "",
+            teacherName: item.teacherName || "Teacher",
+            present: 0,
+            late: 0,
+            leave: 0,
+            pending: 0,
+            rejected: 0,
+            total: 0
+          });
+        }
+
+        const row = summaryMap.get(key);
+        row.total += 1;
+
+        if (item.verificationStatus === "verified") {
+          if (item.status === "present") row.present += 1;
+          else if (item.status === "late") row.late += 1;
+          else if (item.status === "leave") row.leave += 1;
+        } else if (item.verificationStatus === "pending") {
+          row.pending += 1;
+        } else if (item.verificationStatus === "rejected") {
+          row.rejected += 1;
+        }
+      });
+
+    return Array.from(summaryMap.values()).sort((a, b) =>
+      a.teacherName.localeCompare(b.teacherName)
+    );
+  }, [teacherAttendanceItems, teacherSummaryMonth]);
 
   const filteredHomework = useMemo(() => {
     return homeworkItems.filter((item) => {
@@ -342,25 +385,38 @@ export default function AcademicMonitorSection({
   };
 
   return (
-    <div className="card-soft mt-6 overflow-hidden">
-      <div className="flex items-start justify-between gap-4">
+    <div className="card-soft mt-5 overflow-hidden rounded-[30px] border-slate-200/80 shadow-[0_12px_36px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow">
-            <ShieldCheck size={24} />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-200/60">
+            <ShieldCheck size={22} />
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 sm:text-[2rem]">
-              Academic Monitoring
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 sm:text-[15px]">
-              Verify teacher attendance, track homework by class, and review student attendance reports.
-            </p>
+          <div className="space-y-2">
+            <div>
+              <h2 className="text-[1.85rem] font-bold leading-tight text-slate-900 sm:text-[2rem]">
+                Academic Monitoring
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 sm:text-[15px]">
+                Review teacher attendance, class homework, and student attendance reports from one place.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full bg-amber-50 px-3 py-1 font-semibold text-amber-700">
+                {pendingTeacherAttendance.length} pending reviews
+              </span>
+              <span className="rounded-full bg-violet-50 px-3 py-1 font-semibold text-violet-700">
+                {homeworkItems.length} homework posts
+              </span>
+              <span className="rounded-full bg-sky-50 px-3 py-1 font-semibold text-sky-700">
+                {studentAttendanceItems.length} reports
+              </span>
+            </div>
           </div>
         </div>
         <button
           type="button"
           onClick={handleSectionToggle}
-          className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700"
           aria-label={isOpen ? "Collapse Academic Monitoring section" : "Expand Academic Monitoring section"}
         >
           <ChevronDown
@@ -372,9 +428,9 @@ export default function AcademicMonitorSection({
       {isOpen && (
         <div className="mt-6 space-y-6">
           <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-4 text-sm text-cyan-800">
-            <p className="font-semibold text-cyan-900">How teacher attendance verification works</p>
+            <p className="font-semibold text-cyan-900">How Office QR attendance works</p>
             <p className="mt-1 text-sm leading-6">
-              Office QR + school location policy is controlled here. Teacher attendance first comes here as pending, and only after admin verification does it become final school attendance.
+              This section is for admin and office only. Admin saves the fixed office QR here, school location is checked from here, and teachers only scan this same office QR from their own dashboard. After scanning plus location verification, the attendance still comes here first as pending and becomes final only after admin approval.
             </p>
           </div>
 
@@ -532,11 +588,74 @@ export default function AcademicMonitorSection({
 
             <div className="space-y-6">
               <div className="card-soft">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="card-title">Teacher Monthly Summary</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Admin can review month-wise teacher attendance totals after verification.
+                    </p>
+                  </div>
+                  <div className="min-w-[180px]">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      Summary Month
+                    </label>
+                    <input
+                      type="month"
+                      value={teacherSummaryMonth}
+                      onChange={(e) => setTeacherSummaryMonth(e.target.value)}
+                      className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 max-h-[320px] space-y-3 overflow-auto pr-1">
+                  {teacherMonthlySummary.map((item) => (
+                    <div
+                      key={item.teacherId || item.teacherName}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{item.teacherName}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Total submissions this month: {item.total}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">
+                            Present {item.present}
+                          </span>
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-700">
+                            Late {item.late}
+                          </span>
+                          <span className="rounded-full bg-cyan-100 px-2.5 py-1 font-semibold text-cyan-700">
+                            Leave {item.leave}
+                          </span>
+                          <span className="rounded-full bg-violet-100 px-2.5 py-1 font-semibold text-violet-700">
+                            Pending {item.pending}
+                          </span>
+                          <span className="rounded-full bg-rose-100 px-2.5 py-1 font-semibold text-rose-700">
+                            Rejected {item.rejected}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {!loading && teacherMonthlySummary.length === 0 && (
+                    <p className="text-sm text-slate-500">
+                      No teacher attendance records found for the selected month.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="card-soft">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="card-title">Teacher Attendance Security</p>
+                    <p className="card-title">Office QR & Attendance Security</p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Configure school location, expected Wi-Fi, and the one-time office QR code used for teacher attendance.
+                      Admin sets the school location and the one-time office QR here. Teachers do not generate QR here; they only scan it from the teacher dashboard.
                     </p>
                   </div>
                   <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
@@ -628,7 +747,7 @@ export default function AcademicMonitorSection({
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Office QR / Code
+                        Office QR / Code Setup
                       </label>
                       <div className="flex gap-2">
                         <input
@@ -679,7 +798,7 @@ export default function AcademicMonitorSection({
                       )}
                     </div>
                     <p className="mt-3 text-xs text-slate-500">
-                      Browser apps cannot reliably read the connected Wi-Fi SSID. Geo + office QR are enforced; Wi-Fi is shown as school policy guidance.
+                      Browser apps cannot reliably read the connected Wi-Fi SSID. So the real control is office QR plus school location. Teachers must scan the office QR from their own panel before attendance submission.
                     </p>
 
                     <div className="mt-4 flex justify-end">
@@ -696,15 +815,18 @@ export default function AcademicMonitorSection({
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm font-semibold text-slate-900">
-                      Office Attendance QR
+                      Office Attendance QR for Teachers
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Print or display this in the school office. Teachers use this same QR/code while standing on campus.
+                      Print this or paste it in the school office. Teachers scan this same QR from the teacher panel while standing inside campus.
                     </p>
                     {qrImageUrl ? (
-                      <img
+                      <Image
                         src={qrImageUrl}
                         alt="Teacher attendance QR"
+                        width={176}
+                        height={176}
+                        unoptimized
                         className="mx-auto mt-3 h-44 w-44 rounded-2xl border border-slate-200 bg-white p-2"
                       />
                     ) : (

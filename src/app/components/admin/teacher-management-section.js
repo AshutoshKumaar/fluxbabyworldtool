@@ -517,25 +517,32 @@ export default function TeacherManagementSection({
   };
 
   return (
-    <div className="card-soft mt-6 overflow-hidden">
-      <div className="flex items-start justify-between gap-4">
+    <div className="card-soft mt-5 overflow-hidden rounded-[30px] border-slate-200/80 shadow-[0_12px_36px_rgba(15,23,42,0.06)]">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow">
-            <GraduationCap size={24} />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/60">
+            <GraduationCap size={22} />
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 sm:text-[2rem]">
-              Teacher Management
-            </h2>
-            <p className="mt-1 text-sm text-slate-500 sm:text-[15px]">
-              Create teacher login accounts, assign classes, and share credentials.
-            </p>
+          <div className="space-y-2">
+            <div>
+              <h2 className="text-[1.85rem] font-bold leading-tight text-slate-900 sm:text-[2rem]">
+                Teacher Management
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 sm:text-[15px]">
+                Create teacher login accounts, assign classes, and manage who teaches which group.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <StatPill icon={GraduationCap} label={`${teacherStats.total} teachers`} />
+              <StatPill icon={KeyRound} label={`${teacherStats.active} active`} />
+              <StatPill icon={School} label={`${teacherStats.assignedGroups} groups`} />
+            </div>
           </div>
         </div>
         <button
           type="button"
           onClick={handleSectionToggle}
-          className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
           aria-label={
             isOpen
               ? "Collapse Teacher Management section"
