@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import {
   addDoc,
   collection,
@@ -42,11 +43,50 @@ const normalizeList = (value) => {
   return [String(value).trim()].filter(Boolean);
 };
 
+const titleCase = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeClassName = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return "";
+  if (["pre nursery", "pre nur", "pre nur.", "pre-nursery", "prenursery"].includes(normalized)) {
+    return "Pre Nursery";
+  }
+  if (normalized === "nursery") return "Nursery";
+  if (normalized === "lkg") return "LKG";
+  if (normalized === "ukg") return "UKG";
+  if (normalized === "play" || normalized === "playgroup" || normalized === "play group") {
+    return "Play";
+  }
+
+  const numeric = normalized.match(/^0*(\d+)$/);
+  if (numeric) return String(Number(numeric[1]));
+
+  return titleCase(normalized);
+};
+
+const normalizeSectionName = (value) => String(value || "").trim().toUpperCase();
+
+const normalizeGroupKey = (value) => {
+  const [className = "", sectionName = ""] = String(value || "").split("__");
+  return `${normalizeClassName(className)}__${normalizeSectionName(sectionName)}`;
+};
+
 const classSectionKey = (className, section) =>
-  `${String(className || "").trim()}__${String(section || "").trim()}`;
+  `${normalizeClassName(className)}__${normalizeSectionName(section)}`;
 
 const formatClassGroupLabel = (groupKey) => {
-  const [className = "", sectionName = ""] = String(groupKey || "").split("__");
+  const [className = "", sectionName = ""] = normalizeGroupKey(groupKey).split("__");
   if (!className) return "Not assigned";
   return `Class ${className}${sectionName ? ` (${sectionName})` : ""}`;
 };
@@ -202,18 +242,18 @@ export default function TeacherDashboardPage() {
           uid: user.uid,
           teacherName: teacherData.teacherName || user.displayName || "Teacher",
           subjects: normalizeList(teacherData.subjects),
-          assignedClassGroups: normalizeList(teacherData.assignedClassGroups),
-          assignedClasses: normalizeList(teacherData.assignedClasses),
-          assignedSections: normalizeList(teacherData.assignedSections),
+          assignedClassGroups: normalizeList(teacherData.assignedClassGroups).map(normalizeGroupKey),
+          assignedClasses: normalizeList(teacherData.assignedClasses).map(normalizeClassName),
+          assignedSections: normalizeList(teacherData.assignedSections).map(normalizeSectionName),
           classTeacherOf: normalizeList(
             teacherData.classTeacherOf || teacherData.classTeacherClass
-          ),
+          ).map(normalizeGroupKey),
           primaryClassGroup:
-            String(
+            normalizeGroupKey(
               teacherData.primaryClassGroup ||
                 normalizeList(teacherData.classTeacherOf || teacherData.classTeacherClass)[0] ||
                 ""
-            ).trim()
+            )
         });
         setAttendancePolicy(
           policySnap.exists()
@@ -245,19 +285,21 @@ export default function TeacherDashboardPage() {
         }));
 
         const allowedClassSection = new Set();
-        normalizeList(teacherData.assignedClassGroups).forEach((item) => {
+        normalizeList(teacherData.assignedClassGroups).map(normalizeGroupKey).forEach((item) => {
           const [cls = "", sec = ""] = String(item).split("__");
           if (!cls) return;
           allowedClassSection.add(classSectionKey(cls, sec));
         });
-        normalizeList(teacherData.classTeacherOf || teacherData.classTeacherClass).forEach((item) => {
+        normalizeList(teacherData.classTeacherOf || teacherData.classTeacherClass)
+          .map(normalizeGroupKey)
+          .forEach((item) => {
           const [cls = "", sec = ""] = String(item).split("__");
           if (!cls) return;
           allowedClassSection.add(classSectionKey(cls, sec));
         });
 
-        const assignedClasses = normalizeList(teacherData.assignedClasses);
-        const assignedSections = normalizeList(teacherData.assignedSections);
+        const assignedClasses = normalizeList(teacherData.assignedClasses).map(normalizeClassName);
+        const assignedSections = normalizeList(teacherData.assignedSections).map(normalizeSectionName);
 
         const hasAssignments =
           allowedClassSection.size > 0 ||
@@ -267,10 +309,10 @@ export default function TeacherDashboardPage() {
         const filteredStudents = allStudents.filter((student) => {
           const key = classSectionKey(student.class, student.section);
           if (allowedClassSection.size && allowedClassSection.has(key)) return true;
-          if (assignedClasses.length && !assignedClasses.includes(String(student.class || ""))) {
+          if (assignedClasses.length && !assignedClasses.includes(normalizeClassName(student.class))) {
             return false;
           }
-          if (assignedSections.length && !assignedSections.includes(String(student.section || ""))) {
+          if (assignedSections.length && !assignedSections.includes(normalizeSectionName(student.section))) {
             return false;
           }
           return assignedClasses.length > 0 || assignedSections.length > 0
@@ -287,9 +329,17 @@ export default function TeacherDashboardPage() {
           )
         ).filter(Boolean);
 
-        if (classKeys[0]) {
-          setSelectedClassKey(classKeys[0]);
-          setHomeworkClassKey(classKeys[0]);
+        const preferredClassKey = teacherData.primaryClassGroup
+          ? normalizeGroupKey(teacherData.primaryClassGroup)
+          : classKeys[0] || "";
+
+        if (preferredClassKey) {
+          setSelectedClassKey(
+            classKeys.includes(preferredClassKey) ? preferredClassKey : classKeys[0]
+          );
+          setHomeworkClassKey(
+            classKeys.includes(preferredClassKey) ? preferredClassKey : classKeys[0]
+          );
         }
 
         setLoading(false);
@@ -303,22 +353,28 @@ export default function TeacherDashboardPage() {
     return () => unsub();
   }, [router]);
 
-  const classOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(students.map((student) => classSectionKey(student.class, student.section)))
-      ).filter(Boolean),
-    [students]
-  );
+  const classOptions = useMemo(() => {
+    const unique = Array.from(
+      new Set(students.map((student) => classSectionKey(student.class, student.section)))
+    ).filter(Boolean);
+
+    return unique.sort((a, b) => formatClassGroupLabel(a).localeCompare(formatClassGroupLabel(b)));
+  }, [students]);
 
   const selectedStudents = useMemo(() => {
     if (!selectedClassKey) return [];
     const [className, sectionName] = selectedClassKey.split("__");
-    return students.filter(
-      (student) =>
-        String(student.class || "") === className &&
-        String(student.section || "") === sectionName
-    );
+    return students
+      .filter(
+        (student) =>
+          normalizeClassName(student.class) === className &&
+          normalizeSectionName(student.section) === sectionName
+      )
+      .sort((a, b) => {
+        const aRoll = String(a.rollNo || "");
+        const bRoll = String(b.rollNo || "");
+        return aRoll.localeCompare(bRoll, undefined, { numeric: true, sensitivity: "base" });
+      });
   }, [students, selectedClassKey]);
 
   const studentAttendanceSummary = useMemo(() => {
@@ -1640,22 +1696,75 @@ export default function TeacherDashboardPage() {
                 </div>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm text-sky-900">
+                <p className="font-semibold">Selected class-section students</p>
+                <p className="mt-1 leading-6 text-sky-800">
+                  Yahan teacher ko sirf wahi students dikh rahe hain jo uske assigned class-section
+                  group me hain. Attendance mark karte waqt student ki important details bhi saath me
+                  visible hongi, taki confusion na ho.
+                </p>
+              </div>
+
               <div className="mt-4 max-h-[460px] overflow-auto space-y-3 pr-1">
                 {selectedStudents.map((student) => {
                   const currentStatus = studentAttendanceMap[student.id]?.status || "present";
                   return (
                     <div
                       key={student.id}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                      className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
                     >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="font-semibold text-slate-900">{student.name}</p>
-                          <p className="text-xs text-slate-500">
-                            Roll {student.rollNo || "--"} | Father {student.fatherName || "--"}
-                          </p>
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                            {student.photoUrl ? (
+                              <Image
+                                src={student.photoUrl}
+                                alt={student.name || "Student photo"}
+                                fill
+                                unoptimized
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
+                                No Photo
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-lg font-semibold text-slate-900">{student.name}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {formatClassGroupLabel(classSectionKey(student.class, student.section))} | Roll{" "}
+                              {student.rollNo || "--"}
+                            </p>
+                            <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-2 lg:grid-cols-3">
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                Father: <span className="font-semibold text-slate-800">{student.fatherName || "--"}</span>
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                Mother: <span className="font-semibold text-slate-800">{student.motherName || "--"}</span>
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                DOB: <span className="font-semibold text-slate-800">{student.dob || "--"}</span>
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                Contact: <span className="font-semibold text-slate-800">{student.contactNo || "--"}</span>
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                Transport: <span className="font-semibold text-slate-800">{student.transportMode || "--"}</span>
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                                Blood Group: <span className="font-semibold text-slate-800">{student.bloodGroup || "--"}</span>
+                              </span>
+                            </div>
+                            {student.address ? (
+                              <p className="mt-3 text-xs leading-6 text-slate-500">
+                                Address: <span className="font-medium text-slate-700">{student.address}</span>
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex min-w-[250px] flex-wrap gap-2 xl:justify-end">
                           {attendanceStatuses.map((status) => (
                             <button
                               key={status}
