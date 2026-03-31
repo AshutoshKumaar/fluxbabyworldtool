@@ -477,88 +477,89 @@ export default function AdminDashboard() {
         <h1 className="text-2xl sm:text-3xl font-bold text-indigo-700 mb-6">
           Admin Dashboard - Flux Baby World
         </h1>
+        <div className="space-y-7 [&>*]:mt-0">
+          <AddStudentCard
+            name={name}
+            setName={setName}
+            studentClass={studentClass}
+            setStudentClass={setStudentClass}
+            section={section}
+            setSection={setSection}
+            rollNo={rollNo}
+            setRollNo={setRollNo}
+            dob={dob}
+            setDob={setDob}
+            fatherName={fatherName}
+            setFatherName={setFatherName}
+            motherName={motherName}
+            setMotherName={setMotherName}
+            gender={gender}
+            setGender={setGender}
+            bloodGroup={bloodGroup}
+            setBloodGroup={setBloodGroup}
+            contactNo={contactNo}
+            setContactNo={setContactNo}
+            address={address}
+            setAddress={setAddress}
+            photoFile={photoFile}
+            setPhotoFile={setPhotoFile}
+            photoInputKey={photoInputKey}
+            uploadProgress={uploadProgress}
+            isUploading={isUploading}
+            documents={documents}
+            setDocuments={setDocuments}
+            transportMode={transportMode}
+            setTransportMode={setTransportMode}
+            parentEmail={parentEmail}
+            setParentEmail={setParentEmail}
+            parentPassword={parentPassword}
+            setParentPassword={setParentPassword}
+            onAddStudent={addStudent}
+            isOpen={activeSection === "add-student"}
+            onToggle={() => toggleSection("add-student")}
+          />
 
-        <AddStudentCard
-          name={name}
-          setName={setName}
-          studentClass={studentClass}
-          setStudentClass={setStudentClass}
-          section={section}
-          setSection={setSection}
-          rollNo={rollNo}
-          setRollNo={setRollNo}
-          dob={dob}
-          setDob={setDob}
-          fatherName={fatherName}
-          setFatherName={setFatherName}
-          motherName={motherName}
-          setMotherName={setMotherName}
-          gender={gender}
-          setGender={setGender}
-          bloodGroup={bloodGroup}
-          setBloodGroup={setBloodGroup}
-          contactNo={contactNo}
-          setContactNo={setContactNo}
-          address={address}
-          setAddress={setAddress}
-          photoFile={photoFile}
-          setPhotoFile={setPhotoFile}
-          photoInputKey={photoInputKey}
-          uploadProgress={uploadProgress}
-          isUploading={isUploading}
-          documents={documents}
-          setDocuments={setDocuments}
-          transportMode={transportMode}
-          setTransportMode={setTransportMode}
-          parentEmail={parentEmail}
-          setParentEmail={setParentEmail}
-          parentPassword={parentPassword}
-          setParentPassword={setParentPassword}
-          onAddStudent={addStudent}
-          isOpen={activeSection === "add-student"}
-          onToggle={() => toggleSection("add-student")}
-        />
+          <TeacherManagementSection
+            students={students}
+            isOpen={activeSection === "teacher-management"}
+            onToggle={() => toggleSection("teacher-management")}
+          />
 
-        <TeacherManagementSection
-          students={students}
-          isOpen={activeSection === "teacher-management"}
-          onToggle={() => toggleSection("teacher-management")}
-        />
+          <AcademicMonitorSection
+            students={students}
+            isOpen={activeSection === "academic-monitor"}
+            onToggle={() => toggleSection("academic-monitor")}
+          />
 
-        <AcademicMonitorSection
-          students={students}
-          isOpen={activeSection === "academic-monitor"}
-          onToggle={() => toggleSection("academic-monitor")}
-        />
+          <StudentsFeesList
+            students={students}
+            onFetchMonthlyFees={fetchMonthlyFees}
+            onSaveMonthlyFees={saveMonthlyFees}
+            onUpdateStudent={updateStudentProfile}
+            onDeleteStudent={deleteStudent}
+            isOpen={activeSection === "students-fees"}
+            onToggle={() => toggleSection("students-fees")}
+          />
 
-        <StudentsFeesList
-          students={students}
-          onFetchMonthlyFees={fetchMonthlyFees}
-          onSaveMonthlyFees={saveMonthlyFees}
-          onUpdateStudent={updateStudentProfile}
-          onDeleteStudent={deleteStudent}
-          isOpen={activeSection === "students-fees"}
-          onToggle={() => toggleSection("students-fees")}
-        />
+          <AdmitCardSection
+            students={students}
+            onFetchMonthlyFees={fetchMonthlyFees}
+            isOpen={activeSection === "admit-card"}
+            onToggle={() => toggleSection("admit-card")}
+          />
 
-        <AdmitCardSection
-          students={students}
-          onFetchMonthlyFees={fetchMonthlyFees}
-          isOpen={activeSection === "admit-card"}
-          onToggle={() => toggleSection("admit-card")}
-        />
+          <MarksheetSection
+            students={students}
+            isOpen={activeSection === "marksheet"}
+            onToggle={() => toggleSection("marksheet")}
+          />
 
-        <MarksheetSection
-          students={students}
-          isOpen={activeSection === "marksheet"}
-          onToggle={() => toggleSection("marksheet")}
-        />
-
-        <TransferCertificateSection
-          students={students}
-          isOpen={activeSection === "transfer-certificate"}
-          onToggle={() => toggleSection("transfer-certificate")}
-        />
+          <TransferCertificateSection
+            students={students}
+            isOpen={activeSection === "transfer-certificate"}
+            onToggle={() => toggleSection("transfer-certificate")}
+          />
+        </div>
       </div>
     </div>
   );

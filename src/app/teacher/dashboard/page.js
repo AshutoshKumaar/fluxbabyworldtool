@@ -63,6 +63,18 @@ const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
   return Math.round(earthRadius * c);
 };
 
+function formatDateTime(value) {
+  const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
     <div className="card-soft">

@@ -35,8 +35,42 @@ const inputClass =
 const textareaClass =
   "min-h-[96px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500";
 
+const titleCase = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeClassName = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return "";
+  if (["pre nursery", "pre nur", "pre nur.", "pre-nursery", "prenursery"].includes(normalized)) {
+    return "Pre Nursery";
+  }
+  if (normalized === "nursery") return "Nursery";
+  if (normalized === "lkg") return "LKG";
+  if (normalized === "ukg") return "UKG";
+  if (normalized === "play" || normalized === "playgroup" || normalized === "play group") {
+    return "Play";
+  }
+
+  const numeric = normalized.match(/^0*(\d+)$/);
+  if (numeric) return String(Number(numeric[1]));
+
+  return titleCase(normalized);
+};
+
+const normalizeSectionName = (value) => String(value || "").trim().toUpperCase();
+
 const groupKey = (className, section) =>
-  `${String(className || "").trim()}__${String(section || "").trim()}`;
+  `${normalizeClassName(className)}__${normalizeSectionName(section)}`;
 
 const parseCsv = (value) =>
   String(value || "")
@@ -45,9 +79,22 @@ const parseCsv = (value) =>
     .filter(Boolean);
 
 const formatGroupLabel = (groupKeyValue) => {
-  const [className = "", sectionName = ""] = String(groupKeyValue || "").split("__");
+  const [rawClassName = "", rawSectionName = ""] = String(groupKeyValue || "").split("__");
+  const className = normalizeClassName(rawClassName);
+  const sectionName = normalizeSectionName(rawSectionName);
   if (!className) return "Not assigned";
   return `Class ${className}${sectionName ? ` (${sectionName})` : ""}`;
+};
+
+const rankClass = (value) => {
+  const normalized = normalizeClassName(value).toLowerCase();
+  if (normalized === "play") return -3;
+  if (normalized === "pre nursery") return -2;
+  if (normalized === "nursery") return -1;
+  if (normalized === "lkg") return 0;
+  if (normalized === "ukg") return 1;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric + 10 : 999;
 };
 
 function StatPill({ icon: Icon, label }) {
@@ -115,11 +162,16 @@ export default function TeacherManagementSection({
     return { total, active, classTeachers, assignedGroups };
   }, [teachers]);
 
+  const teacherRoleHelp =
+    teacherForm.role === "class_teacher"
+      ? "Class teacher means one primary homeroom class-section, but the same teacher can still teach multiple assigned class-section groups."
+      : "Teacher can teach every class-section group assigned below and publish homework class-wise.";
+
   const availableGroups = useMemo(() => {
     const map = new Map();
     students.forEach((student) => {
-      const className = String(student.class || "").trim();
-      const sectionName = String(student.section || "").trim();
+      const className = normalizeClassName(student.class);
+      const sectionName = normalizeSectionName(student.section);
       if (!className) return;
       const key = groupKey(className, sectionName);
       if (!key || map.has(key)) return;
@@ -130,16 +182,6 @@ export default function TeacherManagementSection({
         label: `Class ${className}${sectionName ? ` (${sectionName})` : ""}`
       });
     });
-    const rankClass = (value) => {
-      const normalized = String(value || "").trim().toLowerCase();
-      if (normalized === "pre nursery" || normalized === "pre-nursery" || normalized === "pre nur.") return -2;
-      if (normalized === "nursery") return -1;
-      if (normalized === "lkg") return 0;
-      if (normalized === "ukg") return 1;
-      const numeric = Number(normalized);
-      return Number.isFinite(numeric) ? numeric + 10 : 999;
-    };
-
     return Array.from(map.values()).sort((a, b) => {
       const diff = rankClass(a.className) - rankClass(b.className);
       if (diff !== 0) return diff;
@@ -584,17 +626,28 @@ export default function TeacherManagementSection({
             </div>
           </div>
 
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-900">
+            <p className="font-semibold">Class-section group ka simple matlab</p>
+            <p className="mt-1 leading-6 text-emerald-800">
+              Ek <span className="font-semibold">class-section group</span> ka matlab hai ek exact
+              teaching combination, jaise <span className="font-semibold">Class 2 (A)</span> ya{" "}
+              <span className="font-semibold">Class 3 (B)</span>. Isliye teacher ko wahi groups
+              assign karna hai jahan wo actual me padhata hai. Duplicate class names ab clean format
+              me merge ho kar hi dikhaye jayenge.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="card-soft">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="card-title">Create Teacher Login</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Teacher dashboard access is created from here.
+                  Create login, choose role, and assign the exact class-section groups this teacher handles.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <StatPill icon={School} label={`${availableGroups.length} class groups`} />
+                <StatPill icon={School} label={`${availableGroups.length} class-section groups`} />
                 <StatPill icon={KeyRound} label={`${teachers.length} teacher accounts`} />
               </div>
             </div>
@@ -628,9 +681,7 @@ export default function TeacherManagementSection({
                   <option value="class_teacher">Class Teacher</option>
                 </select>
                 <p className="mt-2 text-xs text-slate-500">
-                  {teacherForm.role === "class_teacher"
-                    ? "Class teacher has one primary class for reporting, but can still teach multiple assigned class groups."
-                    : "Teacher can teach every class group assigned below and publish homework class-wise."}
+                  {teacherRoleHelp}
                 </p>
               </div>
               <div>
@@ -724,10 +775,10 @@ export default function TeacherManagementSection({
 
               <div className="mt-4">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Assign Class Groups
+                  Assign Teaching Class-Section Groups
                 </label>
               <p className="mb-2 text-xs text-slate-500">
-                Select every class-section this teacher actually teaches.
+                Select every class + section combination this teacher actually teaches.
               </p>
                 <div className="max-h-[220px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -748,7 +799,7 @@ export default function TeacherManagementSection({
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Selected groups:{" "}
+                  Selected class-section groups:{" "}
                   <span className="font-semibold text-slate-700">{selectedGroups.length}</span>
                 </p>
               </div>
@@ -756,10 +807,10 @@ export default function TeacherManagementSection({
             {teacherForm.role === "class_teacher" && (
               <div className="mt-4">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Primary Class Teacher Group
+                  Primary Homeroom Class-Section
                 </label>
                 <p className="mb-2 text-xs text-slate-500">
-                  This is the homeroom class. The same teacher can still teach other assigned groups.
+                  Ye reporting/homeroom class hai. Teacher iske alawa aur assigned groups me bhi padha sakta hai.
                 </p>
                 <select
                   className={inputClass}
@@ -771,7 +822,7 @@ export default function TeacherManagementSection({
                     }))
                   }
                 >
-                  <option value="">Select primary class group</option>
+                  <option value="">Select primary class-section</option>
                   {availableGroups.map((group) => (
                     <option key={group.key} value={group.key}>
                       {group.label}
@@ -922,22 +973,22 @@ export default function TeacherManagementSection({
                     </div>
                     <div className="rounded-2xl bg-white px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">
-                        Teaching Class Groups
+                        Teaching Class-Section Groups
                       </p>
                       <p className="mt-2 font-semibold text-slate-800">
                         {teacher.assignedClassGroups?.length
-                          ? teacher.assignedClassGroups
-                              .map((item) => {
-                                const [className, sectionName] = String(item).split("__");
-                                return `Class ${className || "--"}${sectionName ? ` (${sectionName})` : ""}`;
-                              })
+                          ? Array.from(
+                              new Set(
+                                teacher.assignedClassGroups.map((item) => formatGroupLabel(item))
+                              )
+                            )
                               .join(", ")
                           : "Not assigned"}
                       </p>
                     </div>
                     <div className="rounded-2xl bg-white px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400 font-semibold">
-                        Primary Class Teacher Group
+                        Primary Homeroom Group
                       </p>
                         <p className="mt-2 font-semibold text-slate-800">
                         {teacher.primaryClassGroup
@@ -1081,7 +1132,7 @@ export default function TeacherManagementSection({
 
             <div className="mt-4">
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Reassign Teaching Class Groups
+                Reassign Teaching Class-Section Groups
               </label>
               <div className="max-h-[220px] overflow-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1106,7 +1157,7 @@ export default function TeacherManagementSection({
             {editTeacherForm.role === "class_teacher" && (
               <div className="mt-4">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Primary Class Teacher Group
+                  Primary Homeroom Class-Section
                 </label>
                 <select
                   className={inputClass}
@@ -1118,7 +1169,7 @@ export default function TeacherManagementSection({
                     }))
                   }
                 >
-                  <option value="">Select primary class group</option>
+                  <option value="">Select primary class-section</option>
                   {availableGroups.map((group) => (
                     <option key={group.key} value={group.key}>
                       {group.label}

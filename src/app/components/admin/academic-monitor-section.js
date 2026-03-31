@@ -29,11 +29,47 @@ const toInputDate = (value = new Date()) => {
   return date.toISOString().slice(0, 10);
 };
 
+const titleCase = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const normalizeClassName = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return "";
+  if (["pre nursery", "pre nur", "pre nur.", "pre-nursery", "prenursery"].includes(normalized)) {
+    return "Pre Nursery";
+  }
+  if (normalized === "nursery") return "Nursery";
+  if (normalized === "lkg") return "LKG";
+  if (normalized === "ukg") return "UKG";
+  if (normalized === "play" || normalized === "playgroup" || normalized === "play group") {
+    return "Play";
+  }
+
+  const numeric = normalized.match(/^0*(\d+)$/);
+  if (numeric) return String(Number(numeric[1]));
+
+  return titleCase(normalized);
+};
+
+const normalizeSectionName = (value) => String(value || "").trim().toUpperCase();
+
 const classSectionKey = (className, section) =>
-  `${String(className || "").trim()}__${String(section || "").trim()}`;
+  `${normalizeClassName(className)}__${normalizeSectionName(section)}`;
 
 const formatClassGroup = (key) => {
-  const [className = "", sectionName = ""] = String(key || "").split("__");
+  const [rawClassName = "", rawSectionName = ""] = String(key || "").split("__");
+  const className = normalizeClassName(rawClassName);
+  const sectionName = normalizeSectionName(rawSectionName);
   if (!className) return "Unassigned";
   return `Class ${className}${sectionName ? ` (${sectionName})` : ""}`;
 };
@@ -115,8 +151,8 @@ export default function AcademicMonitorSection({
   const availableGroups = useMemo(() => {
     const map = new Map();
     students.forEach((student) => {
-      const className = String(student.class || "").trim();
-      const sectionName = String(student.section || "").trim();
+      const className = normalizeClassName(student.class);
+      const sectionName = normalizeSectionName(student.section);
       if (!className) return;
       const key = classSectionKey(className, sectionName);
       if (!key || map.has(key)) return;
