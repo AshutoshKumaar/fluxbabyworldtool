@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { schoolClassOptions } from "../../../lib/school-classes";
 
 export default function AddStudentCard({
   name,
@@ -179,12 +180,18 @@ export default function AddStudentCard({
               className="w-full h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                placeholder="Class *"
+              <select
                 value={studentClass}
                 onChange={(e) => setStudentClass(e.target.value)}
-                className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+                className="h-11 sm:h-12 border border-slate-200 bg-white/80 px-3 sm:px-4 rounded-xl text-sm sm:text-base text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Class *</option>
+                {schoolClassOptions.map((className) => (
+                  <option key={className} value={className}>
+                    Class {className}
+                  </option>
+                ))}
+              </select>
               <input
                 placeholder="Section (A/B/C)"
                 value={section}

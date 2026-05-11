@@ -22,6 +22,7 @@ import {
   Wifi
 } from "lucide-react";
 import { auth, db } from "../../../lib/firebase";
+import { normalizeSchoolClass, normalizeSection } from "../../../lib/school-classes";
 
 const toInputDate = (value = new Date()) => {
   const date = new Date(value);
@@ -29,39 +30,8 @@ const toInputDate = (value = new Date()) => {
   return date.toISOString().slice(0, 10);
 };
 
-const titleCase = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
-const normalizeClassName = (value) => {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[._-]+/g, " ")
-    .replace(/\s+/g, " ");
-
-  if (!normalized) return "";
-  if (["pre nursery", "pre nur", "pre nur.", "pre-nursery", "prenursery"].includes(normalized)) {
-    return "Pre Nursery";
-  }
-  if (normalized === "nursery") return "Nursery";
-  if (normalized === "lkg") return "LKG";
-  if (normalized === "ukg") return "UKG";
-  if (normalized === "play" || normalized === "playgroup" || normalized === "play group") {
-    return "Play";
-  }
-
-  const numeric = normalized.match(/^0*(\d+)$/);
-  if (numeric) return String(Number(numeric[1]));
-
-  return titleCase(normalized);
-};
-
-const normalizeSectionName = (value) => String(value || "").trim().toUpperCase();
+const normalizeClassName = normalizeSchoolClass;
+const normalizeSectionName = normalizeSection;
 
 const classSectionKey = (className, section) =>
   `${normalizeClassName(className)}__${normalizeSectionName(section)}`;

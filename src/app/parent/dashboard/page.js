@@ -21,6 +21,7 @@ import TransferCertificateCard from "@/app/components/parents/transfer-certifica
 import MarksheetCard from "@/app/components/parents/marksheet-card";
 import { buildTransferCertificateHtml } from "../../../lib/transfer-certificate";
 import { buildReportCardHtml, mergeReportCardData } from "../../../lib/report-card";
+import { normalizeSchoolClass, normalizeSection } from "../../../lib/school-classes";
 
 const formatDate = (value) => {
   if (!value) return "--";
@@ -84,15 +85,6 @@ const getFeeDue = (fee) => {
 const getTotalDue = (fees = []) =>
   fees.reduce((sum, fee) => sum + getFeeDue(fee), 0);
 
-const normalizeClassKey = (value) => {
-  if (!value) return "";
-  const str = String(value).toUpperCase();
-  if (str.includes("UKG")) return "UKG";
-  const match = str.match(/\d/);
-  if (match) return match[0];
-  return String(value).trim();
-};
-
 const makeUpiRefId = () => {
   // Keep short and alphanumeric for strict UPI apps (Paytm etc.)
   const timePart = Date.now().toString().slice(-8);
@@ -103,6 +95,23 @@ const makeUpiRefId = () => {
 const DEMO_UPI_ID = "munnasingh.king-2@oksbi";
 const DEMO_PAYEE_NAME = "Flux Baby World";
 const ADMIN_WHATSAPP_NUMBER = "919122946266";
+const primaryScheduleKey = "1-5";
+
+const isPrimaryScheduleClass = (className) => {
+  const numeric = Number(normalizeSchoolClass(className));
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 5;
+};
+
+const getScheduleKeyForClass = (className) =>
+  isPrimaryScheduleClass(className) ? primaryScheduleKey : normalizeSchoolClass(className);
+
+const getShiftNameForClass = (className) =>
+  isPrimaryScheduleClass(className) ? "First Shift" : "Second Shift";
+
+const getExamTimeForClass = (exam, className) =>
+  isPrimaryScheduleClass(className)
+    ? exam?.firstShiftTime || exam?.examTime || "--"
+    : exam?.secondShiftTime || exam?.reportingTime || exam?.examTime || "--";
 
 function ParentDashboard() {
   const router = useRouter();
@@ -123,6 +132,7 @@ function ParentDashboard() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [error, setError] = useState("");
   const [nowTick, setNowTick] = useState(Date.now());
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
@@ -163,8 +173,8 @@ function ParentDashboard() {
         }
         setStudent({ id: studentDoc.id, ...studentDoc.data() });
         const studentData = studentDoc.data();
-        const studentClass = String(studentData.class || "").trim();
-        const studentSection = String(studentData.section || "").trim();
+        const studentClass = normalizeSchoolClass(studentData.class);
+        const studentSection = normalizeSection(studentData.section);
 
         const tcDoc = await getDoc(
           doc(db, "transferCertificates", userData.studentId)
@@ -207,10 +217,16 @@ function ParentDashboard() {
         setExam(latestExam);
 
         if (latestExam) {
-          const classKey = normalizeClassKey(studentDoc.data()?.class || "");
-          const scheduleDoc = await getDoc(
-            doc(db, "exams", latestExam.id, "schedules", classKey)
+          const classKey = normalizeSchoolClass(studentDoc.data()?.class || "");
+          const scheduleKey = getScheduleKeyForClass(classKey);
+          let scheduleDoc = await getDoc(
+            doc(db, "exams", latestExam.id, "schedules", scheduleKey)
           );
+          if (!scheduleDoc.exists() && scheduleKey !== classKey) {
+            scheduleDoc = await getDoc(
+              doc(db, "exams", latestExam.id, "schedules", classKey)
+            );
+          }
           const scheduleData = scheduleDoc.data()?.rows || [];
           setScheduleRows(scheduleData);
 
@@ -226,8 +242,8 @@ function ParentDashboard() {
           .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
           .filter(
             (item) =>
-              String(item.className || "").trim() === studentClass &&
-              String(item.sectionName || "").trim() === studentSection
+              normalizeSchoolClass(item.className) === studentClass &&
+              normalizeSection(item.sectionName) === studentSection
           )
           .sort((a, b) => {
             const aTime = a.createdAt?.toMillis?.() || 0;
@@ -241,8 +257,8 @@ function ParentDashboard() {
           .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
           .filter(
             (item) =>
-              String(item.className || "").trim() === studentClass &&
-              String(item.sectionName || "").trim() === studentSection
+              normalizeSchoolClass(item.className) === studentClass &&
+              normalizeSection(item.sectionName) === studentSection
           )
           .map((item) => {
             const record = item.records?.[studentDoc.id];
@@ -334,6 +350,34 @@ function ParentDashboard() {
     ? waitingStartedAt.getTime() + 15 * 60 * 1000
     : null;
   const waitingRemaining = waitingDeadline ? waitingDeadline - nowTick : 0;
+  const parentTabs = [
+    {
+      key: "overview",
+      label: "Overview",
+      helper: "Admit card, fees, and today’s quick summary."
+    },
+    {
+      key: "payments",
+      label: "Payments",
+      helper: "Due status, payment request, and fee history."
+    },
+    {
+      key: "attendance",
+      label: "Attendance",
+      helper: "Monthly percentages and recent attendance."
+    },
+    {
+      key: "homework",
+      label: "Homework",
+      helper: "Daily class homework for parents."
+    },
+    {
+      key: "documents",
+      label: "Documents",
+      helper: "Report card and transfer certificate."
+    }
+  ];
+  const availableDocumentCount = Number(Boolean(reportCard)) + Number(Boolean(tcData));
 
   const handleDownload = () => {
     if (!student || !exam) return;
@@ -341,6 +385,8 @@ function ParentDashboard() {
       alert(blockReason || "Admit card download is not available.");
       return;
     }
+    const shiftName = getShiftNameForClass(student.class);
+    const shiftTime = getExamTimeForClass(exam, student.class);
     const rows = scheduleRows
       .map(
         (row) => `
@@ -411,7 +457,7 @@ function ParentDashboard() {
             <div class="exam-banner">FINAL TERM EXAMINATION DATE SHEET ${exam.session || ""}</div>
             <div class="content">
               <div class="row">
-                <img class="photo" src="${student.photoUrl || ""}" alt="Student Photo" />
+                <img class="photo" src="${student.photoUrl || "/logo.png"}" alt="Student Photo" onerror="this.onerror=null;this.src='/logo.png';this.style.objectFit='contain';this.style.padding='6px';" />
                 <div style="flex:1;">
                   <div class="grid">
                     <div class="field">
@@ -458,7 +504,11 @@ function ParentDashboard() {
                   </div>
                   <div class="field">
                     <div class="label">Time</div>
-                    <div class="value">${exam.examTime || ""}</div>
+                    <div class="value">${shiftTime}</div>
+                  </div>
+                  <div class="field">
+                    <div class="label">Shift</div>
+                    <div class="value">${shiftName}</div>
                   </div>
                   <div class="field" style="grid-column: span 2;">
                     <div class="label">Exam Center</div>
@@ -467,7 +517,7 @@ function ParentDashboard() {
                 </div>
               </div>
 
-              <div class="note">Note: Reporting Timing: ${exam.reportingTime || ""}</div>
+              <div class="note">Note: ${shiftName} Timing: ${shiftTime}</div>
               <table>
                 <thead>
                   <tr>
@@ -742,152 +792,311 @@ function ParentDashboard() {
       <ParentNavbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">
-            Parent Dashboard
-          </h1>
-          <p className="text-sm text-slate-500">
-            Review admit card details and clear dues to download.
-          </p>
+          <div className="card-soft rounded-[30px] border-slate-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.98),rgba(240,249,255,0.82))] shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-500">
+                  Parent Workspace
+                </p>
+                <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                  Everything important, without one extra-long page
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+                  Switch between overview, payments, attendance, homework, and documents so you only
+                  see the part you need right now.
+                </p>
+              </div>
+
+              {student && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[430px]">
+                  <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
+                      Student
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-indigo-700">{student.name || "--"}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-500">
+                      Due
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-emerald-700">Rs {totalDue}</p>
+                  </div>
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-500">
+                      Attendance
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-sky-700">{attendanceSummary.presentPct}% present</p>
+                  </div>
+                  <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-500">
+                      Documents
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-violet-700">{availableDocumentCount} ready</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {!student ? (
           <div className="text-slate-500">No student data available.</div>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
-              <AdmitCardPreview
-                student={student}
-                exam={exam}
-                scheduleRows={scheduleRows}
-                canDownload={canDownload}
-                blockReason={blockReason}
-                onDownload={handleDownload}
-                formatDate={formatDate}
-              />
-
-              <div className="space-y-4">
-                <FeeSummary
-                  totalDue={totalDue}
-                  isPaid={isPaid}
-                  canDownload={canDownload}
-                  blockReason={blockReason}
-                  onDownload={handleDownload}
-                  onPayAtSchool={handlePayAtSchool}
-                  onShowQr={() => setShowQr(true)}
-                  onPayViaUpi={handlePayViaUpi}
-                  paymentLocked={paymentLocked}
-                  paymentLockLabel={
-                    paymentLocked
-                      ? "Payment request already submitted. Wait for admin verification."
-                      : ""
-                  }
-                />
-                <div className="card-soft">
-                <p className="card-title">Payment Verification</p>
-                <p className="mt-2 text-xs text-slate-500">
-                  After payment, submit UTR/Ref no. Admin will verify and then unlock admit card.
-                </p>
-                {isWaitingForVerification && (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-sm font-semibold text-amber-800">
-                      {"\u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u092a\u094d\u0930\u0917\u0924\u093f \u092e\u0947\u0902 \u0939\u0948 | Verification in progress"}
-                    </p>
-                    <p className="mt-1 text-xs text-amber-700">
-                      {"\u0906\u092a\u0915\u093e \u092d\u0941\u0917\u0924\u093e\u0928 \u0905\u0928\u0941\u0930\u094b\u0927 \u0926\u0930\u094d\u091c \u0939\u094b \u091a\u0941\u0915\u093e \u0939\u0948\u0964 \u0915\u0943\u092a\u092f\u093e 10-15 \u092e\u093f\u0928\u091f \u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e \u0915\u0930\u0947\u0902\u0964"}
-                      {" \u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u0915\u0947 \u092c\u093e\u0926 Admit Card download \u0915\u0947 \u0932\u093f\u090f \u0938\u0915\u094d\u0930\u093f\u092f \u0939\u094b \u091c\u093e\u090f\u0917\u093e\u0964"}
-                    </p>
-                    <p className="mt-1 text-xs text-amber-700">
-                      Your payment request has been received. Please wait 10-15 minutes.
-                      Download will be enabled after admin verification.
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
-                        {"\u0905\u0928\u0941\u0930\u094b\u0927 \u0938\u092e\u092f: "} {formatDateTime(paymentRequest?.submittedAt)}
-                      </span>
-                      <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
-                        Live Timer: {formatDuration(waitingRemaining)}
-                      </span>
-                      {paymentRequest?.utr && (
-                        <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
-                          UTR: {paymentRequest.utr}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={utrInput}
-                    onChange={(e) =>
-                      setUtrInput(
-                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
-                      )
-                    }
-                    placeholder="Enter UTR / Ref No (Example: 123456789012)"
-                    maxLength={30}
-                    disabled={paymentLocked || paymentSubmitting}
-                    className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSubmitPaymentRequest}
-                    disabled={paymentLocked || paymentSubmitting}
-                    className="h-10 px-4 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {paymentSubmitting ? "Submitting..." : "I Have Paid"}
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-slate-500">
-                  Enter only letters and numbers. No space or special characters.
-                </p>
-                {paymentLocked && (
-                  <p className="mt-2 text-xs text-slate-500">
-                    Request already submitted. Please wait for admin verification before trying again.
-                  </p>
-                )}
-                {paymentRequest?.status && (
-                  <div className="mt-3 text-sm">
-                    <span className="text-slate-500">Status: </span>
-                    <span
-                      className={`font-semibold ${
-                        paymentRequest.status === "verified"
-                          ? "text-emerald-600"
-                          : paymentRequest.status === "submitted"
-                            ? "text-amber-600"
-                            : "text-rose-600"
+            <div className="rounded-[30px] border border-slate-200/70 bg-white/90 p-3 shadow-[0_10px_28px_rgba(15,23,42,0.05)] sm:p-4">
+              <div className="flex flex-wrap gap-2">
+                {parentTabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition ${
+                        isActive
+                          ? "border-slate-900 bg-slate-900 text-white shadow-[0_12px_24px_rgba(15,23,42,0.16)]"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                       }`}
                     >
-                      {paymentRequest.status}
-                    </span>
-                    {paymentRequest.utr && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Last UTR: {paymentRequest.utr}
+                      <p className="text-sm font-semibold">{tab.label}</p>
+                      <p className={`mt-1 text-xs ${isActive ? "text-white/70" : "text-slate-500"}`}>
+                        {tab.helper}
                       </p>
-                    )}
-                    {paymentRequest.method && (
-                      <p className="text-xs text-slate-500 mt-1">
-                        Method: {paymentRequest.method.replaceAll("_", " ")}
-                      </p>
-                    )}
-                  </div>
-                  )}
-                </div>
-                <TransferCertificateCard
-                  tcData={tcData}
-                  onDownload={handleDownloadTc}
-                />
-                <MarksheetCard
-                  reportCard={reportCard}
-                  onDownload={handleDownloadReportCard}
-                />
-                <FeeHistory fees={fees} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-6">
-              <div className="space-y-6">
-                <div className="card-soft">
+            {activeTab === "overview" && (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.18fr_0.82fr]">
+                <AdmitCardPreview
+                  student={student}
+                  exam={exam}
+                  scheduleRows={scheduleRows}
+                  canDownload={canDownload}
+                  blockReason={blockReason}
+                  onDownload={handleDownload}
+                  formatDate={formatDate}
+                  shiftName={student ? getShiftNameForClass(student.class) : ""}
+                  shiftTime={student && exam ? getExamTimeForClass(exam, student.class) : ""}
+                />
+
+                <div className="space-y-6">
+                  <FeeSummary
+                    totalDue={totalDue}
+                    isPaid={isPaid}
+                    canDownload={canDownload}
+                    blockReason={blockReason}
+                    onDownload={handleDownload}
+                    onPayAtSchool={handlePayAtSchool}
+                    onShowQr={() => setShowQr(true)}
+                    onPayViaUpi={handlePayViaUpi}
+                    paymentLocked={paymentLocked}
+                    paymentLockLabel={
+                      paymentLocked
+                        ? "Payment request already submitted. Wait for admin verification."
+                        : ""
+                    }
+                  />
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="card-soft rounded-[26px]">
+                      <p className="card-title">Attendance Snapshot</p>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                          <p className="text-xs uppercase tracking-[0.18em] text-emerald-600 font-semibold">
+                            Present
+                          </p>
+                          <p className="mt-2 text-2xl font-bold text-emerald-700">
+                            {attendanceSummary.presentPct}%
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                          <p className="text-xs uppercase tracking-[0.18em] text-rose-600 font-semibold">
+                            Absent
+                          </p>
+                          <p className="mt-2 text-2xl font-bold text-rose-700">
+                            {attendanceSummary.absentPct}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="card-soft rounded-[26px]">
+                      <p className="card-title">Documents Ready</p>
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                          <p className="text-xs uppercase tracking-[0.18em] text-violet-600 font-semibold">
+                            Report Card
+                          </p>
+                          <p className="mt-2 text-base font-semibold text-violet-700">
+                            {reportCard ? "Available" : "Not uploaded"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                          <p className="text-xs uppercase tracking-[0.18em] text-amber-600 font-semibold">
+                            Transfer Certificate
+                          </p>
+                          <p className="mt-2 text-base font-semibold text-amber-700">
+                            {tcData ? "Available" : "Not uploaded"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card-soft rounded-[26px]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="card-title">Latest Homework</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Quick look at the most recent class post.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                        {homeworkItems.length} posts
+                      </span>
+                    </div>
+                    {homeworkItems[0] ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="font-semibold text-slate-900">{homeworkItems[0].title}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {homeworkItems[0].subject || "--"} | Due {formatDate(homeworkItems[0].dueDate)}
+                        </p>
+                        <p className="mt-3 text-sm leading-6 text-slate-600">
+                          {homeworkItems[0].description}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-slate-500">
+                        No homework has been published yet for this class.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "payments" && (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+                <div className="space-y-6">
+                  <FeeSummary
+                    totalDue={totalDue}
+                    isPaid={isPaid}
+                    canDownload={canDownload}
+                    blockReason={blockReason}
+                    onDownload={handleDownload}
+                    onPayAtSchool={handlePayAtSchool}
+                    onShowQr={() => setShowQr(true)}
+                    onPayViaUpi={handlePayViaUpi}
+                    paymentLocked={paymentLocked}
+                    paymentLockLabel={
+                      paymentLocked
+                        ? "Payment request already submitted. Wait for admin verification."
+                        : ""
+                    }
+                  />
+
+                  <div className="card-soft rounded-[26px]">
+                    <p className="card-title">Payment Verification</p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      After payment, submit UTR/Ref no. Admin will verify and then unlock admit card.
+                    </p>
+                    {isWaitingForVerification && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-sm font-semibold text-amber-800">
+                          {"\u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u092a\u094d\u0930\u0917\u0924\u093f \u092e\u0947\u0902 \u0939\u0948 | Verification in progress"}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          {"\u0906\u092a\u0915\u093e \u092d\u0941\u0917\u0924\u093e\u0928 \u0905\u0928\u0941\u0930\u094b\u0927 \u0926\u0930\u094d\u091c \u0939\u094b \u091a\u0941\u0915\u093e \u0939\u0948\u0964 \u0915\u0943\u092a\u092f\u093e 10-15 \u092e\u093f\u0928\u091f \u092a\u094d\u0930\u0924\u0940\u0915\u094d\u0937\u093e \u0915\u0930\u0947\u0902\u0964"}
+                          {" \u0938\u0924\u094d\u092f\u093e\u092a\u0928 \u0915\u0947 \u092c\u093e\u0926 Admit Card download \u0915\u0947 \u0932\u093f\u090f \u0938\u0915\u094d\u0930\u093f\u092f \u0939\u094b \u091c\u093e\u090f\u0917\u093e\u0964"}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          Your payment request has been received. Please wait 10-15 minutes.
+                          Download will be enabled after admin verification.
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                          <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                            {"\u0905\u0928\u0941\u0930\u094b\u0927 \u0938\u092e\u092f: "} {formatDateTime(paymentRequest?.submittedAt)}
+                          </span>
+                          <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                            Live Timer: {formatDuration(waitingRemaining)}
+                          </span>
+                          {paymentRequest?.utr && (
+                            <span className="rounded-full bg-white px-2.5 py-1 border border-amber-200 text-amber-800">
+                              UTR: {paymentRequest.utr}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="text"
+                        value={utrInput}
+                        onChange={(e) =>
+                          setUtrInput(
+                            e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
+                          )
+                        }
+                        placeholder="Enter UTR / Ref No (Example: 123456789012)"
+                        maxLength={30}
+                        disabled={paymentLocked || paymentSubmitting}
+                        className="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSubmitPaymentRequest}
+                        disabled={paymentLocked || paymentSubmitting}
+                        className="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {paymentSubmitting ? "Submitting..." : "I Have Paid"}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      Enter only letters and numbers. No space or special characters.
+                    </p>
+                    {paymentLocked && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        Request already submitted. Please wait for admin verification before trying again.
+                      </p>
+                    )}
+                    {paymentRequest?.status && (
+                      <div className="mt-3 text-sm">
+                        <span className="text-slate-500">Status: </span>
+                        <span
+                          className={`font-semibold ${
+                            paymentRequest.status === "verified"
+                              ? "text-emerald-600"
+                              : paymentRequest.status === "submitted"
+                                ? "text-amber-600"
+                                : "text-rose-600"
+                          }`}
+                        >
+                          {paymentRequest.status}
+                        </span>
+                        {paymentRequest.utr && (
+                          <p className="mt-1 text-xs text-slate-500">Last UTR: {paymentRequest.utr}</p>
+                        )}
+                        {paymentRequest.method && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Method: {paymentRequest.method.replaceAll("_", " ")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <FeeHistory fees={fees} />
+              </div>
+            )}
+
+            {activeTab === "attendance" && (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="space-y-6">
+                  <div className="card-soft">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="card-title">Student Attendance Summary</p>
@@ -1062,8 +1271,11 @@ function ParentDashboard() {
                     )}
                   </div>
                 </div>
+                </div>
               </div>
+            )}
 
+            {activeTab === "homework" && (
               <div className="card-soft">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1116,7 +1328,20 @@ function ParentDashboard() {
                   )}
                 </div>
               </div>
-            </div>
+            )}
+
+            {activeTab === "documents" && (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <MarksheetCard
+                  reportCard={reportCard}
+                  onDownload={handleDownloadReportCard}
+                />
+                <TransferCertificateCard
+                  tcData={tcData}
+                  onDownload={handleDownloadTc}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

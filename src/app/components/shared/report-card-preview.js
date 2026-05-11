@@ -4,6 +4,7 @@ import {
   getMarksSummary,
   RC_SCHOOL
 } from "../../../lib/report-card";
+import StudentAvatar from "./student-avatar";
 
 export default function ReportCardPreview({
   reportCard,
@@ -91,13 +92,14 @@ export default function ReportCardPreview({
               Email: {RC_SCHOOL.email} | Phone: {RC_SCHOOL.phone}
             </p>
           </div>
-          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white/85">
-            <img
-              src={reportCard.photoUrl || "/logo.png"}
-              alt={reportCard.pupilName || "Student"}
-              className="h-full w-full object-cover"
-            />
-          </div>
+          <StudentAvatar
+            src={reportCard.photoUrl}
+            alt={reportCard.pupilName || "Student"}
+            name={reportCard.pupilName}
+            className="h-14 w-14 rounded-2xl border border-slate-200 bg-white/85 object-cover"
+            fallbackClassName="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white/85 text-slate-500"
+            textClassName="text-sm font-semibold"
+          />
         </div>
 
         <div className="border-b border-rose-100 bg-gradient-to-r from-rose-50 via-orange-50 to-rose-50 px-4 py-3 text-center font-serif text-sm font-black tracking-[0.08em] text-rose-800">

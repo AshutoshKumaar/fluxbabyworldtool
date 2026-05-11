@@ -2,7 +2,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import StudentAvatar from "../shared/student-avatar";
 import { db } from "../../../lib/firebase";
+import { normalizeSchoolClass } from "../../../lib/school-classes";
 import {
   addDoc,
   collection,
@@ -14,6 +16,9 @@ import {
 } from "firebase/firestore";
 
 const emptyRow = { day: "", date: "", subject: "" };
+const primaryScheduleKey = "1-5";
+const lowerClassOptions = ["Pre Nursery", "Nursery", "LKG", "UKG"];
+const timetableClassOptions = [...lowerClassOptions, primaryScheduleKey];
 const dayOptions = [
   "Monday",
   "Tuesday",
@@ -45,34 +50,33 @@ const toIsoDate = (value) => {
   return "";
 };
 
-const normalizeClassKey = (value) => {
-  if (!value) return "";
-  const str = String(value).toUpperCase();
-  if (str.includes("UKG")) return "UKG";
-  const match = str.match(/\d/);
-  if (match) return match[0];
-  return String(value).trim();
-};
-
-const sortClassKeys = (a, b) => {
-  if (a === "UKG") return -1;
-  if (b === "UKG") return 1;
-  const aNum = Number(a);
-  const bNum = Number(b);
-  const aIsNum = !Number.isNaN(aNum);
-  const bIsNum = !Number.isNaN(bNum);
-  if (aIsNum && bIsNum) return aNum - bNum;
-  if (aIsNum) return -1;
-  if (bIsNum) return 1;
-  return String(a).localeCompare(String(b));
-};
-
 const formatClassSection = (student) => {
   if (!student) return "--";
-  const cls = student.class || "--";
+  const cls = normalizeSchoolClass(student.class) || "--";
   const sec = student.section ? ` (${student.section})` : "";
   return `Class ${cls}${sec}`;
 };
+
+const isPrimaryScheduleClass = (className) => {
+  const normalized = normalizeSchoolClass(className);
+  const numeric = Number(normalized);
+  return Number.isInteger(numeric) && numeric >= 1 && numeric <= 5;
+};
+
+const getScheduleKeyForClass = (className) =>
+  isPrimaryScheduleClass(className) ? primaryScheduleKey : normalizeSchoolClass(className);
+
+const normalizeScheduleKey = (value) => {
+  const raw = String(value || "").trim();
+  if (raw === primaryScheduleKey || raw === "Class 1 to 5") return primaryScheduleKey;
+  return normalizeSchoolClass(raw);
+};
+
+const formatTimetableClassLabel = (className) =>
+  className === primaryScheduleKey ? "Class 1 to 5" : `Class ${className}`;
+
+const getShiftNameForClass = (className) =>
+  isPrimaryScheduleClass(className) ? "First Shift" : "Second Shift";
 
 export default function AdmitCardSection({
   students,
@@ -100,6 +104,8 @@ export default function AdmitCardSection({
   const [examName, setExamName] = useState("Annual Examination");
   const [session, setSession] = useState("2025-2026");
   const [reportingTime, setReportingTime] = useState("8:30 to 12:30");
+  const [firstShiftTime, setFirstShiftTime] = useState("8:00 AM - 1:00 PM");
+  const [secondShiftTime, setSecondShiftTime] = useState("8:30 to 12:30");
   const [examCenter, setExamCenter] = useState("Flux Baby World Campus");
   const [examDate, setExamDate] = useState("");
   const [examTime, setExamTime] = useState("");
@@ -107,7 +113,7 @@ export default function AdmitCardSection({
 
   const [scheduleByClass, setScheduleByClass] = useState({});
   const [scheduleDrafts, setScheduleDrafts] = useState({});
-  const [selectedClass, setSelectedClass] = useState("UKG");
+  const [selectedClass, setSelectedClass] = useState(primaryScheduleKey);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState(false);
   const [toast, setToast] = useState(null);
@@ -115,23 +121,12 @@ export default function AdmitCardSection({
   const [permissionMap, setPermissionMap] = useState({});
   const [savingPermission, setSavingPermission] = useState(false);
 
-  const classOptions = useMemo(() => {
-    const fromStudents = students
-      .map((student) => normalizeClassKey(student.class))
-      .filter(Boolean);
-    const fromSchedules = Object.keys(scheduleByClass || {}).map((key) =>
-      normalizeClassKey(key)
-    );
-    const fromDrafts = Object.keys(scheduleDrafts || {}).map((key) =>
-      normalizeClassKey(key)
-    );
-    const options = Array.from(
-      new Set([...fromStudents, ...fromSchedules, ...fromDrafts])
-    )
-      .filter(Boolean)
-      .sort(sortClassKeys);
-    return options.length ? options : ["UKG"];
-  }, [students, scheduleByClass, scheduleDrafts]);
+  const classOptions = useMemo(() => timetableClassOptions, []);
+
+  const getShiftTimeForClass = (className) =>
+    isPrimaryScheduleClass(className)
+      ? firstShiftTime || examTime || "--"
+      : secondShiftTime || reportingTime || examTime || "--";
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -204,7 +199,7 @@ export default function AdmitCardSection({
         ...row,
         date: toIsoDate(row.date)
       }));
-      const className = data.className || normalizeClassKey(docSnap.id);
+      const className = normalizeScheduleKey(data.className || docSnap.id);
       map[className] = rows;
     });
 
@@ -221,6 +216,15 @@ export default function AdmitCardSection({
           date: toIsoDate(row.date)
         }));
         map[className] = rows;
+      }
+    }
+
+    if (!map[primaryScheduleKey]) {
+      const existingPrimaryRows = ["1", "2", "3", "4", "5"]
+        .map((className) => map[className])
+        .find((rows) => Array.isArray(rows) && rows.length);
+      if (existingPrimaryRows) {
+        map[primaryScheduleKey] = existingPrimaryRows;
       }
     }
 
@@ -255,17 +259,20 @@ export default function AdmitCardSection({
     if (exam) {
       setExamName(exam.examName || "Annual Examination");
       setSession(exam.session || "2025-2026");
+      const legacyTime = exam.examTime || "";
       setReportingTime(exam.reportingTime || "8:30 to 12:30");
+      setFirstShiftTime(exam.firstShiftTime || legacyTime || "8:00 AM - 1:00 PM");
+      setSecondShiftTime(exam.secondShiftTime || exam.reportingTime || legacyTime || "8:30 to 12:30");
       setExamCenter(exam.examCenter || "Flux Baby World Campus");
       setExamDate(toIsoDate(exam.examDate || ""));
-      setExamTime(exam.examTime || "");
+      setExamTime(legacyTime);
     }
     fetchSchedules(selectedExamId);
     fetchPermissions(selectedExamId);
   }, [selectedExamId, exams]);
 
   const handleCreateExam = async () => {
-    if (!examName || !session || !examDate || !examTime || !examCenter) {
+    if (!examName || !session || !examDate || !firstShiftTime || !secondShiftTime || !examCenter) {
       showToast("Fill all exam fields before creating a new exam.", "error");
       return;
     }
@@ -275,9 +282,11 @@ export default function AdmitCardSection({
         examName,
         session,
         reportingTime,
+        firstShiftTime,
+        secondShiftTime,
         examCenter,
         examDate: toIsoDate(examDate),
-        examTime,
+        examTime: firstShiftTime,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -294,7 +303,7 @@ export default function AdmitCardSection({
 
   const handleSaveExam = async () => {
     if (!selectedExamId) return;
-    if (!examName || !session || !examDate || !examTime || !examCenter) {
+    if (!examName || !session || !examDate || !firstShiftTime || !secondShiftTime || !examCenter) {
       showToast("Fill all exam fields before saving.", "error");
       return;
     }
@@ -306,9 +315,11 @@ export default function AdmitCardSection({
           examName,
           session,
           reportingTime,
+          firstShiftTime,
+          secondShiftTime,
           examCenter,
           examDate: toIsoDate(examDate),
-          examTime,
+          examTime: firstShiftTime,
           updatedAt: serverTimestamp()
         },
         { merge: true }
@@ -510,9 +521,20 @@ export default function AdmitCardSection({
   const allowDownload = permissionMap[selectedId]?.allowDownload || false;
   const paymentRequest = permissionMap[selectedId]?.paymentRequest || null;
   const canDownload = isPaid || allowDownload;
+  const selectedScheduleKey = selectedStudent
+    ? getScheduleKeyForClass(selectedStudent.class)
+    : "";
   const scheduleRows = selectedStudent
-    ? scheduleByClass[normalizeClassKey(selectedStudent.class)] || []
+    ? scheduleByClass[selectedScheduleKey] ||
+      scheduleByClass[normalizeSchoolClass(selectedStudent.class)] ||
+      []
     : [];
+  const selectedShiftName = selectedStudent
+    ? getShiftNameForClass(selectedStudent.class)
+    : "";
+  const selectedShiftTime = selectedStudent
+    ? getShiftTimeForClass(selectedStudent.class)
+    : "";
 
   const downloadAdmitCard = (student) => {
     if (!student) return;
@@ -523,6 +545,8 @@ export default function AdmitCardSection({
     const win = window.open("", "_blank");
     if (!win) return;
     const examDateFormatted = formatDate(examDate);
+    const admitCardShiftName = getShiftNameForClass(student.class);
+    const admitCardShiftTime = getShiftTimeForClass(student.class);
     const rows = scheduleRows
       .map(
         (row) => `
@@ -593,7 +617,7 @@ export default function AdmitCardSection({
             <div class="exam-banner">FINAL TERM EXAMINATION DATE SHEET ${session}</div>
             <div class="content">
               <div class="row">
-                <img class="photo" src="${student.photoUrl || ""}" alt="Student Photo" />
+                <img class="photo" src="${student.photoUrl || "/logo.png"}" alt="Student Photo" onerror="this.onerror=null;this.src='/logo.png';this.style.objectFit='contain';this.style.padding='6px';" />
                 <div style="flex:1;">
                   <div class="grid">
                     <div class="field">
@@ -640,7 +664,11 @@ export default function AdmitCardSection({
                   </div>
                   <div class="field">
                     <div class="label">Time</div>
-                    <div class="value">${examTime || "--"}</div>
+                    <div class="value">${admitCardShiftTime}</div>
+                  </div>
+                  <div class="field">
+                    <div class="label">Shift</div>
+                    <div class="value">${admitCardShiftName}</div>
                   </div>
                   <div class="field" style="grid-column: span 2;">
                     <div class="label">Exam Center</div>
@@ -649,7 +677,7 @@ export default function AdmitCardSection({
                 </div>
               </div>
 
-              <div class="note">Note: Reporting Timing: ${reportingTime}</div>
+              <div class="note">Note: ${admitCardShiftName} Timing: ${admitCardShiftTime}</div>
               <table>
                 <thead>
                   <tr>
@@ -799,16 +827,25 @@ export default function AdmitCardSection({
                   className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <input
-                  value={examTime}
-                  onChange={(e) => setExamTime(e.target.value)}
+                  value={firstShiftTime}
+                  onChange={(e) => {
+                    setFirstShiftTime(e.target.value);
+                    setExamTime(e.target.value);
+                  }}
                   className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Time (e.g. 10:00 AM - 1:00 PM)"
+                  placeholder="First Shift (Class 1-5)"
+                />
+                <input
+                  value={secondShiftTime}
+                  onChange={(e) => setSecondShiftTime(e.target.value)}
+                  className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Second Shift (Pre Nursery-UKG)"
                 />
                 <input
                   value={reportingTime}
                   onChange={(e) => setReportingTime(e.target.value)}
                   className="h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Reporting Time"
+                  placeholder="Reporting / Note Time"
                 />
                 <input
                   value={examCenter}
@@ -860,7 +897,7 @@ export default function AdmitCardSection({
                         : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    Class {item}
+                    {formatTimetableClassLabel(item)}
                   </button>
                 ))}
               </div>
@@ -1004,20 +1041,14 @@ export default function AdmitCardSection({
               ) : (
                 <div className="mt-4 space-y-4 max-h-[620px] overflow-auto pr-1">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    {selectedStudent.photoUrl ? (
-                      <img
-                        src={selectedStudent.photoUrl}
-                        alt={selectedStudent.name}
-                        className="h-16 w-16 rounded-2xl object-cover border"
-                      />
-                    ) : (
-                      <div className="h-16 w-16 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center font-semibold">
-                        {selectedStudent.name
-                          ?.split(" ")
-                          .map((part) => part[0])
-                          .join("") || "S"}
-                      </div>
-                    )}
+                    <StudentAvatar
+                      src={selectedStudent.photoUrl}
+                      alt={selectedStudent.name}
+                      name={selectedStudent.name}
+                      className="h-16 w-16 rounded-2xl border object-cover"
+                      fallbackClassName="flex h-16 w-16 items-center justify-center rounded-2xl border bg-slate-100 text-slate-600"
+                      textClassName="font-semibold"
+                    />
                     <div>
                       <p className="text-lg font-semibold text-slate-900">
                         {selectedStudent.name}
@@ -1046,7 +1077,13 @@ export default function AdmitCardSection({
                     <div className="bg-slate-50 rounded-xl p-3">
                       <p className="text-xs text-slate-500">Time</p>
                       <p className="font-semibold text-slate-800">
-                        {examTime || "--"}
+                        {selectedShiftTime || "--"}
+                      </p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3">
+                      <p className="text-xs text-slate-500">Shift</p>
+                      <p className="font-semibold text-slate-800">
+                        {selectedShiftName || "--"}
                       </p>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-3">

@@ -2,6 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import StudentAvatar from "../shared/student-avatar";
+import {
+  normalizeSchoolClass,
+  normalizeSection,
+  schoolClassOptions,
+  sortSchoolClasses
+} from "../../../lib/school-classes";
 
 const monthOptions = [
   { value: 1, label: "January" },
@@ -75,10 +82,10 @@ export default function StudentsFeesList({
     const unique = Array.from(
       new Set(
         students
-          .map((item) => String(item.class || "").trim())
+          .map((item) => normalizeSchoolClass(item.class))
           .filter(Boolean)
       )
-    );
+    ).sort(sortSchoolClasses);
     return ["all", ...unique];
   }, [students]);
 
@@ -115,7 +122,7 @@ export default function StudentsFeesList({
     const term = searchTerm.trim().toLowerCase();
     return students.filter((student) => {
       const matchesClass =
-        classFilter === "all" || String(student.class) === classFilter;
+        classFilter === "all" || normalizeSchoolClass(student.class) === classFilter;
       const matchesSearch =
         !term ||
         student.name?.toLowerCase().includes(term) ||
@@ -242,7 +249,7 @@ export default function StudentsFeesList({
       parentUid: student.parentUid || "",
       name: student.name || "",
       class: student.class || "",
-      section: student.section || "",
+      section: normalizeSection(student.section),
       rollNo: student.rollNo || "",
       dob: student.dob || "",
       fatherName: student.fatherName || "",
@@ -382,8 +389,8 @@ export default function StudentsFeesList({
     try {
       await onUpdateStudent(studentEditModal.studentId, {
         name: studentEditModal.name,
-        class: studentEditModal.class,
-        section: studentEditModal.section,
+        class: normalizeSchoolClass(studentEditModal.class),
+        section: normalizeSection(studentEditModal.section),
         rollNo: studentEditModal.rollNo,
         dob: studentEditModal.dob,
         fatherName: studentEditModal.fatherName,
@@ -532,17 +539,15 @@ export default function StudentsFeesList({
                   onClick={() => handleToggle(student.id)}
                   className="flex items-center gap-4 text-left"
                 >
-                  {student.photoUrl ? (
-                    <img
-                      src={student.photoUrl}
-                      alt={student.name}
-                      className="h-14 w-14 rounded-2xl object-cover border"
-                    />
-                  ) : (
-                    <div className="h-14 w-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center font-semibold">
-                      {initials}
-                    </div>
-                  )}
+                  <StudentAvatar
+                    src={student.photoUrl}
+                    alt={student.name}
+                    name={student.name}
+                    className="h-14 w-14 rounded-2xl border object-cover"
+                    fallbackClassName="flex h-14 w-14 items-center justify-center rounded-2xl border bg-slate-100 text-slate-600"
+                    textClassName="font-semibold"
+                    fallbackLabel={initials}
+                  />
                   <div>
                     <p className="text-base font-semibold text-slate-900">
                       {highlightText(student.name, searchTerm)}
@@ -552,12 +557,12 @@ export default function StudentsFeesList({
                       <span
                         className={
                           classFilter !== "all" &&
-                          String(student.class) === classFilter
+                          normalizeSchoolClass(student.class) === classFilter
                             ? "font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full"
                             : "font-semibold text-slate-700"
                         }
                       >
-                        {student.class}
+                        {normalizeSchoolClass(student.class)}
                       </span>{" "}
                       {student.section ? `(${student.section}) ` : ""}
                       | Roll {highlightText(student.rollNo, searchTerm)}
@@ -1076,7 +1081,14 @@ export default function StudentsFeesList({
               </div>
               <div>
                 <p className="mb-1 text-xs font-semibold text-slate-600">Class</p>
-                <input value={studentEditModal.class} onChange={(e) => updateStudentModal({ class: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm" placeholder="Class" />
+                <select value={normalizeSchoolClass(studentEditModal.class)} onChange={(e) => updateStudentModal({ class: e.target.value })} className="h-10 w-full border border-slate-200 rounded-lg px-3 text-sm">
+                  <option value="">Class</option>
+                  {schoolClassOptions.map((className) => (
+                    <option key={className} value={className}>
+                      Class {className}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <p className="mb-1 text-xs font-semibold text-slate-600">Section</p>
@@ -1123,15 +1135,15 @@ export default function StudentsFeesList({
                 <p className="text-xs text-slate-500 mb-2">Profile Photo</p>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="h-16 w-16 rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
-                    {studentEditModal.photoPreviewUrl ? (
-                      <img
-                        src={studentEditModal.photoPreviewUrl}
-                        alt="Student profile preview"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-[11px] text-slate-400">No photo</span>
-                    )}
+                    <StudentAvatar
+                      src={studentEditModal.photoPreviewUrl}
+                      alt="Student profile preview"
+                      name={studentEditModal.name}
+                      className="h-full w-full object-cover"
+                      fallbackClassName="flex h-full w-full items-center justify-center bg-slate-50 text-slate-400"
+                      textClassName="text-[11px]"
+                      fallbackLabel="No photo"
+                    />
                   </div>
                   <input
                     type="file"

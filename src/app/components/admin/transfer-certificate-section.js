@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { db } from "../../../lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import StudentAvatar from "../shared/student-avatar";
 import {
   buildTransferCertificateHtml,
   getDefaultTransferCertificate,
@@ -280,17 +281,13 @@ export default function TransferCertificateSection({
               {selectedStudent ? (
                 <div className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4 shadow-inner">
                   <div className="mb-4 flex items-center gap-3 rounded-2xl bg-slate-50 px-3 py-3">
-                    {selectedStudent.photoUrl ? (
-                      <img
-                        src={selectedStudent.photoUrl}
-                        alt={selectedStudent.name}
-                        className="h-14 w-14 rounded-2xl border border-slate-200 object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-lg font-bold text-amber-700">
-                        {selectedStudent.name?.[0] || "S"}
-                      </div>
-                    )}
+                    <StudentAvatar
+                      src={selectedStudent.photoUrl}
+                      alt={selectedStudent.name}
+                      name={selectedStudent.name}
+                      className="h-14 w-14 rounded-2xl border border-slate-200 object-cover"
+                      fallbackClassName="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-amber-100 text-lg font-bold text-amber-700"
+                    />
                     <div>
                       <p className="text-base font-semibold text-slate-900">
                         {selectedStudent.name}
@@ -408,17 +405,13 @@ export default function TransferCertificateSection({
                 <div className="mt-4 rounded-[24px] border border-amber-100 bg-gradient-to-r from-amber-50 via-white to-orange-50 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                      {selectedStudent.photoUrl ? (
-                        <img
-                          src={selectedStudent.photoUrl}
-                          alt={selectedStudent.name}
-                          className="h-14 w-14 rounded-2xl border border-white object-cover shadow-sm"
-                        />
-                      ) : (
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-lg font-bold text-amber-700 shadow-sm">
-                          {selectedStudent.name?.[0] || "S"}
-                        </div>
-                      )}
+                      <StudentAvatar
+                        src={selectedStudent.photoUrl}
+                        alt={selectedStudent.name}
+                        name={selectedStudent.name}
+                        className="h-14 w-14 rounded-2xl border border-white object-cover shadow-sm"
+                        fallbackClassName="flex h-14 w-14 items-center justify-center rounded-2xl border border-white bg-white text-lg font-bold text-amber-700 shadow-sm"
+                      />
                       <div>
                         <p className="text-base font-bold text-slate-900">
                           {selectedStudent.name}

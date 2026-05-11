@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import {
   addDoc,
   collection,
@@ -27,6 +26,8 @@ import {
 } from "lucide-react";
 import { auth, db } from "../../../lib/firebase";
 import TeacherNavbar from "@/app/components/teacher/navbar";
+import StudentAvatar from "@/app/components/shared/student-avatar";
+import { normalizeSchoolClass, normalizeSection } from "../../../lib/school-classes";
 
 const attendanceStatuses = ["present", "absent", "late", "leave"];
 const teacherAttendanceStatuses = ["present", "late", "leave"];
@@ -43,39 +44,8 @@ const normalizeList = (value) => {
   return [String(value).trim()].filter(Boolean);
 };
 
-const titleCase = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-
-const normalizeClassName = (value) => {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[._-]+/g, " ")
-    .replace(/\s+/g, " ");
-
-  if (!normalized) return "";
-  if (["pre nursery", "pre nur", "pre nur.", "pre-nursery", "prenursery"].includes(normalized)) {
-    return "Pre Nursery";
-  }
-  if (normalized === "nursery") return "Nursery";
-  if (normalized === "lkg") return "LKG";
-  if (normalized === "ukg") return "UKG";
-  if (normalized === "play" || normalized === "playgroup" || normalized === "play group") {
-    return "Play";
-  }
-
-  const numeric = normalized.match(/^0*(\d+)$/);
-  if (numeric) return String(Number(numeric[1]));
-
-  return titleCase(normalized);
-};
-
-const normalizeSectionName = (value) => String(value || "").trim().toUpperCase();
+const normalizeClassName = normalizeSchoolClass;
+const normalizeSectionName = normalizeSection;
 
 const normalizeGroupKey = (value) => {
   const [className = "", sectionName = ""] = String(value || "").split("__");
@@ -1715,21 +1685,15 @@ export default function TeacherDashboardPage() {
                     >
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="flex items-start gap-4">
-                          <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                            {student.photoUrl ? (
-                              <Image
-                                src={student.photoUrl}
-                                alt={student.name || "Student photo"}
-                                fill
-                                unoptimized
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
-                                No Photo
-                              </div>
-                            )}
-                          </div>
+                          <StudentAvatar
+                            src={student.photoUrl}
+                            alt={student.name || "Student photo"}
+                            name={student.name}
+                            className="h-16 w-16 rounded-2xl border border-slate-200 bg-slate-100 object-cover"
+                            fallbackClassName="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-400"
+                            textClassName="text-xs font-semibold"
+                            fallbackLabel="No Photo"
+                          />
 
                           <div>
                             <p className="text-lg font-semibold text-slate-900">{student.name}</p>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "../../../lib/firebase";
 import { deleteField, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import ReportCardPreview from "@/app/components/shared/report-card-preview";
+import StudentAvatar from "@/app/components/shared/student-avatar";
 import {
   buildReportCardHtml,
   getDefaultReportCard,
@@ -603,17 +604,13 @@ export default function MarksheetSection({
                 <div className="mt-4 rounded-[24px] border border-rose-100 bg-gradient-to-r from-rose-50 via-white to-orange-50 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                      {selectedStudent.photoUrl ? (
-                        <img
-                          src={selectedStudent.photoUrl}
-                          alt={selectedStudent.name}
-                          className="h-14 w-14 rounded-2xl border border-white object-cover shadow-sm"
-                        />
-                      ) : (
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-lg font-bold text-rose-700 shadow-sm">
-                          {selectedStudent.name?.[0] || "S"}
-                        </div>
-                      )}
+                      <StudentAvatar
+                        src={selectedStudent.photoUrl}
+                        alt={selectedStudent.name}
+                        name={selectedStudent.name}
+                        className="h-14 w-14 rounded-2xl border border-white object-cover shadow-sm"
+                        fallbackClassName="flex h-14 w-14 items-center justify-center rounded-2xl border border-white bg-white text-lg font-bold text-rose-700 shadow-sm"
+                      />
                       <div>
                         <p className="text-base font-bold text-slate-900">{selectedStudent.name}</p>
                         <p className="text-xs text-slate-500">

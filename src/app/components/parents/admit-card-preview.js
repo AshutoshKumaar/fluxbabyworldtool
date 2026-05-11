@@ -1,3 +1,5 @@
+import StudentAvatar from "../shared/student-avatar";
+
 export default function AdmitCardPreview({
   student,
   exam,
@@ -5,7 +7,9 @@ export default function AdmitCardPreview({
   canDownload,
   blockReason,
   onDownload,
-  formatDate
+  formatDate,
+  shiftName,
+  shiftTime
 }) {
   const classWithSection = `Class ${student?.class || "--"}${
     student?.section ? ` (${student.section})` : ""
@@ -26,17 +30,14 @@ export default function AdmitCardPreview({
       </p>
       <div className="mt-4 space-y-4">
         <div className="flex items-center gap-4">
-          {student.photoUrl ? (
-            <img
-              src={student.photoUrl}
-              alt={student.name}
-              className="h-16 w-16 rounded-2xl object-cover border"
-            />
-          ) : (
-            <div className="h-16 w-16 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center font-semibold">
-              {student.name?.split(" ").map((part) => part[0]).join("") || "S"}
-            </div>
-          )}
+          <StudentAvatar
+            src={student.photoUrl}
+            alt={student.name}
+            name={student.name}
+            className="h-16 w-16 rounded-2xl border object-cover"
+            fallbackClassName="flex h-16 w-16 items-center justify-center rounded-2xl border bg-slate-100 text-slate-600"
+            textClassName="font-semibold"
+          />
           <div>
             <p className="text-lg font-semibold text-slate-900">
               {student.name}
@@ -69,7 +70,13 @@ export default function AdmitCardPreview({
           <div className="bg-slate-50 rounded-xl p-3">
             <p className="text-xs text-slate-500">Time</p>
             <p className="font-semibold text-slate-800">
-              {exam?.examTime || "--"}
+              {shiftTime || exam?.examTime || "--"}
+            </p>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3">
+            <p className="text-xs text-slate-500">Shift</p>
+            <p className="font-semibold text-slate-800">
+              {shiftName || "--"}
             </p>
           </div>
           <div className="bg-slate-50 rounded-xl p-3">

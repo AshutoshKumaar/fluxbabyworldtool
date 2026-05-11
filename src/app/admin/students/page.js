@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { auth, db, storage } from "../../../lib/firebase";
 import Navbar from "@/app/components/admin/navbar";
 import AddStudentCard from "@/app/components/admin/add-student-card";
+import { normalizeSchoolClass, normalizeSection } from "@/lib/school-classes";
 
 export default function AdminStudentsPage() {
   const router = useRouter();
@@ -64,9 +65,11 @@ export default function AdminStudentsPage() {
   }, [router]);
 
   const addStudent = async () => {
+    const normalizedClass = normalizeSchoolClass(studentClass);
+    const normalizedSection = normalizeSection(section);
     if (
       !name ||
-      !studentClass ||
+      !normalizedClass ||
       !rollNo ||
       !dob ||
       !fatherName ||
@@ -135,8 +138,8 @@ export default function AdminStudentsPage() {
 
       await setDoc(studentRef, {
         name,
-        class: studentClass,
-        section,
+        class: normalizedClass,
+        section: normalizedSection,
         rollNo,
         dob,
         fatherName,
@@ -256,4 +259,3 @@ export default function AdminStudentsPage() {
     </div>
   );
 }
-

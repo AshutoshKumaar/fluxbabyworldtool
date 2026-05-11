@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -111,7 +112,9 @@ export default function LoginPage() {
           <div className="hidden bg-[linear-gradient(160deg,#172554_0%,#1d4ed8_45%,#0f766e_100%)] p-10 text-white xl:flex xl:flex-col xl:justify-between">
             <div>
               <div className="inline-flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur">
-                <ShieldCheck size={16} />
+                <div className="relative h-8 w-8 overflow-hidden rounded-full bg-white/90">
+                  <Image src="/logo.png" alt="Flux Baby World logo" fill className="object-contain p-1" />
+                </div>
                 Flux Baby World School Portal
               </div>
               <h1 className="mt-8 max-w-md text-5xl font-semibold leading-[1.05]">
@@ -238,7 +241,7 @@ export default function LoginPage() {
               </form>
 
               <p className="mt-8 text-center text-xs text-slate-400">
-                © {new Date().getFullYear()} Flux Baby World School • All Rights Reserved
+                {"\u00A9"} {new Date().getFullYear()} Flux Baby World School {"\u2022"} All Rights Reserved
               </p>
             </div>
           </div>
@@ -247,3 +250,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

@@ -570,7 +570,7 @@ export const buildReportCardHtml = (report = {}) => {
   )}</div>
               </div>
               <div class="photo-wrap">
-                <img class="photo" src="${escapeHtml(report.photoUrl || "/logo.png")}" alt="Student Photo" />
+                <img class="photo" src="${escapeHtml(report.photoUrl || "/logo.png")}" alt="Student Photo" onerror="this.onerror=null;this.src='/logo.png';this.style.objectFit='contain';this.style.padding='8px';" />
               </div>
             </div>
 

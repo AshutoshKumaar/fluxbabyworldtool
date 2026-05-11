@@ -25,6 +25,16 @@ import {
   getDownloadURL
 } from "firebase/storage";
 import { useRouter } from "next/navigation";
+import {
+  BadgeCheck,
+  FileBadge2,
+  FileSpreadsheet,
+  GraduationCap,
+  ReceiptIndianRupee,
+  ShieldCheck,
+  UserPlus,
+  Users
+} from "lucide-react";
 import Navbar from "@/app/components/admin/navbar";
 import AddStudentCard from "@/app/components/admin/add-student-card";
 import StudentsFeesList from "@/app/components/admin/students-fees-list";
@@ -33,6 +43,66 @@ import TransferCertificateSection from "@/app/components/admin/transfer-certific
 import MarksheetSection from "@/app/components/admin/marksheet-section";
 import TeacherManagementSection from "@/app/components/admin/teacher-management-section";
 import AcademicMonitorSection from "@/app/components/admin/academic-monitor-section";
+import { normalizeSchoolClass, normalizeSection } from "@/lib/school-classes";
+
+const adminSectionMeta = [
+  {
+    key: "add-student",
+    label: "Admissions",
+    title: "Add Student & Parent Login",
+    helper: "Create student profiles, upload documents, and share parent access.",
+    icon: UserPlus,
+    accent: "from-indigo-500 to-violet-600"
+  },
+  {
+    key: "teacher-management",
+    label: "Teachers",
+    title: "Teacher Management",
+    helper: "Create teacher logins, assign classes, and manage primary homeroom ownership.",
+    icon: GraduationCap,
+    accent: "from-emerald-500 to-teal-600"
+  },
+  {
+    key: "academic-monitor",
+    label: "Monitoring",
+    title: "Academic Monitoring",
+    helper: "Review teacher attendance, homework, and class-wide reports in one place.",
+    icon: ShieldCheck,
+    accent: "from-sky-500 to-cyan-600"
+  },
+  {
+    key: "students-fees",
+    label: "Profiles & Fees",
+    title: "Students & Fees",
+    helper: "Search students, edit details, and manage monthly fee records cleanly.",
+    icon: Users,
+    accent: "from-teal-500 to-emerald-600"
+  },
+  {
+    key: "admit-card",
+    label: "Exams",
+    title: "Admit Card Issuance",
+    helper: "Prepare exam schedules, payment overrides, and admit-card downloads.",
+    icon: BadgeCheck,
+    accent: "from-violet-500 to-indigo-600"
+  },
+  {
+    key: "marksheet",
+    label: "Report Card",
+    title: "Marksheet / Report Card",
+    helper: "Create dynamic report cards and printable results for each student.",
+    icon: FileSpreadsheet,
+    accent: "from-rose-500 to-orange-500"
+  },
+  {
+    key: "transfer-certificate",
+    label: "Certificates",
+    title: "Transfer Certificate",
+    helper: "Generate formal TC documents and keep them ready for download.",
+    icon: FileBadge2,
+    accent: "from-amber-500 to-orange-500"
+  }
+];
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -122,9 +192,11 @@ export default function AdminDashboard() {
 
   // Add student + parent login
   const addStudent = async () => {
+    const normalizedClass = normalizeSchoolClass(studentClass);
+    const normalizedSection = normalizeSection(section);
     if (
       !name ||
-      !studentClass ||
+      !normalizedClass ||
       !rollNo ||
       !dob ||
       !fatherName ||
@@ -208,8 +280,8 @@ export default function AdminDashboard() {
       // Create student
       await setDoc(studentRef, {
         name,
-        class: studentClass,
-        section,
+        class: normalizedClass,
+        section: normalizedSection,
         rollNo,
         dob,
         fatherName,
@@ -342,7 +414,11 @@ export default function AdminDashboard() {
   };
 
   const updateStudentProfile = async (studentId, profileData, newPhotoFile, newDocuments) => {
-    const nextData = { ...profileData };
+    const nextData = {
+      ...profileData,
+      class: normalizeSchoolClass(profileData.class),
+      section: normalizeSection(profileData.section)
+    };
 
     if (newPhotoFile) {
       const photoRef = ref(
@@ -421,6 +497,127 @@ export default function AdminDashboard() {
     setActiveSection((prev) => (prev === sectionKey ? "" : sectionKey));
   };
 
+  const activeSectionMeta = adminSectionMeta.find(
+    (section) => section.key === activeSection
+  );
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case "add-student":
+        return (
+          <AddStudentCard
+            name={name}
+            setName={setName}
+            studentClass={studentClass}
+            setStudentClass={setStudentClass}
+            section={section}
+            setSection={setSection}
+            rollNo={rollNo}
+            setRollNo={setRollNo}
+            dob={dob}
+            setDob={setDob}
+            fatherName={fatherName}
+            setFatherName={setFatherName}
+            motherName={motherName}
+            setMotherName={setMotherName}
+            gender={gender}
+            setGender={setGender}
+            bloodGroup={bloodGroup}
+            setBloodGroup={setBloodGroup}
+            contactNo={contactNo}
+            setContactNo={setContactNo}
+            address={address}
+            setAddress={setAddress}
+            photoFile={photoFile}
+            setPhotoFile={setPhotoFile}
+            photoInputKey={photoInputKey}
+            uploadProgress={uploadProgress}
+            isUploading={isUploading}
+            documents={documents}
+            setDocuments={setDocuments}
+            transportMode={transportMode}
+            setTransportMode={setTransportMode}
+            parentEmail={parentEmail}
+            setParentEmail={setParentEmail}
+            parentPassword={parentPassword}
+            setParentPassword={setParentPassword}
+            onAddStudent={addStudent}
+            isOpen
+            onToggle={() => toggleSection("add-student")}
+          />
+        );
+      case "teacher-management":
+        return (
+          <TeacherManagementSection
+            students={students}
+            isOpen
+            onToggle={() => toggleSection("teacher-management")}
+          />
+        );
+      case "academic-monitor":
+        return (
+          <AcademicMonitorSection
+            students={students}
+            isOpen
+            onToggle={() => toggleSection("academic-monitor")}
+          />
+        );
+      case "students-fees":
+        return (
+          <StudentsFeesList
+            students={students}
+            onFetchMonthlyFees={fetchMonthlyFees}
+            onSaveMonthlyFees={saveMonthlyFees}
+            onUpdateStudent={updateStudentProfile}
+            onDeleteStudent={deleteStudent}
+            isOpen
+            onToggle={() => toggleSection("students-fees")}
+          />
+        );
+      case "admit-card":
+        return (
+          <AdmitCardSection
+            students={students}
+            onFetchMonthlyFees={fetchMonthlyFees}
+            isOpen
+            onToggle={() => toggleSection("admit-card")}
+          />
+        );
+      case "marksheet":
+        return (
+          <MarksheetSection
+            students={students}
+            isOpen
+            onToggle={() => toggleSection("marksheet")}
+          />
+        );
+      case "transfer-certificate":
+        return (
+          <TransferCertificateSection
+            students={students}
+            isOpen
+            onToggle={() => toggleSection("transfer-certificate")}
+          />
+        );
+      default:
+        return (
+          <div className="card-soft flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-[30px] text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <ReceiptIndianRupee size={28} />
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-slate-900">
+                Select a workspace
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Choose a module from the left to continue managing school operations.
+              </p>
+            </div>
+          </div>
+        );
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-100">
@@ -474,91 +671,140 @@ export default function AdminDashboard() {
     <div className="bg-slate-100 min-h-screen">
       <Navbar role="admin" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-indigo-700 mb-6">
-          Admin Dashboard - Flux Baby World
-        </h1>
-        <div className="space-y-7 [&>*]:mt-0">
-          <AddStudentCard
-            name={name}
-            setName={setName}
-            studentClass={studentClass}
-            setStudentClass={setStudentClass}
-            section={section}
-            setSection={setSection}
-            rollNo={rollNo}
-            setRollNo={setRollNo}
-            dob={dob}
-            setDob={setDob}
-            fatherName={fatherName}
-            setFatherName={setFatherName}
-            motherName={motherName}
-            setMotherName={setMotherName}
-            gender={gender}
-            setGender={setGender}
-            bloodGroup={bloodGroup}
-            setBloodGroup={setBloodGroup}
-            contactNo={contactNo}
-            setContactNo={setContactNo}
-            address={address}
-            setAddress={setAddress}
-            photoFile={photoFile}
-            setPhotoFile={setPhotoFile}
-            photoInputKey={photoInputKey}
-            uploadProgress={uploadProgress}
-            isUploading={isUploading}
-            documents={documents}
-            setDocuments={setDocuments}
-            transportMode={transportMode}
-            setTransportMode={setTransportMode}
-            parentEmail={parentEmail}
-            setParentEmail={setParentEmail}
-            parentPassword={parentPassword}
-            setParentPassword={setParentPassword}
-            onAddStudent={addStudent}
-            isOpen={activeSection === "add-student"}
-            onToggle={() => toggleSection("add-student")}
-          />
+        <div className="card-soft rounded-[32px] border-slate-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.9))] shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-400">
+                Admin Workspace
+              </p>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                School operations without the long scrolling
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+                Choose one workspace at a time, complete the task cleanly, and keep the dashboard
+                focused instead of stacking every big module on the same page.
+              </p>
+            </div>
 
-          <TeacherManagementSection
-            students={students}
-            isOpen={activeSection === "teacher-management"}
-            onToggle={() => toggleSection("teacher-management")}
-          />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[360px]">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
+                  Students
+                </p>
+                <p className="mt-2 text-2xl font-bold text-indigo-700">{students.length}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-500">
+                  Active Module
+                </p>
+                <p className="mt-2 text-sm font-bold text-emerald-700">
+                  {activeSectionMeta?.label || "None"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-500">
+                  Teachers
+                </p>
+                <p className="mt-2 text-sm font-bold text-sky-700">
+                  Login + attendance
+                </p>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-500">
+                  Documents
+                </p>
+                <p className="mt-2 text-sm font-bold text-violet-700">
+                  Admit, TC, report card
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <AcademicMonitorSection
-            students={students}
-            isOpen={activeSection === "academic-monitor"}
-            onToggle={() => toggleSection("academic-monitor")}
-          />
+        <div className="mt-7 grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="space-y-4 xl:sticky xl:top-28 self-start">
+            <div className="card-soft rounded-[28px] border-slate-200/70">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    Modules
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Open only the workspace you want to use.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                  {adminSectionMeta.length} sections
+                </span>
+              </div>
 
-          <StudentsFeesList
-            students={students}
-            onFetchMonthlyFees={fetchMonthlyFees}
-            onSaveMonthlyFees={saveMonthlyFees}
-            onUpdateStudent={updateStudentProfile}
-            onDeleteStudent={deleteStudent}
-            isOpen={activeSection === "students-fees"}
-            onToggle={() => toggleSection("students-fees")}
-          />
+              <div className="mt-4 space-y-2.5">
+                {adminSectionMeta.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.key;
+                  return (
+                    <button
+                      key={section.key}
+                      type="button"
+                      onClick={() => setActiveSection(section.key)}
+                      className={`group flex w-full items-start gap-3 rounded-2xl border px-4 py-4 text-left transition ${
+                        isActive
+                          ? "border-slate-900 bg-slate-900 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${section.accent} text-white shadow-md shadow-slate-200/70`}
+                      >
+                        <Icon size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold ${isActive ? "text-white" : "text-slate-900"}`}>
+                          {section.title}
+                        </p>
+                        <p
+                          className={`mt-1 text-xs leading-5 ${
+                            isActive ? "text-white/75" : "text-slate-500"
+                          }`}
+                        >
+                          {section.helper}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </aside>
 
-          <AdmitCardSection
-            students={students}
-            onFetchMonthlyFees={fetchMonthlyFees}
-            isOpen={activeSection === "admit-card"}
-            onToggle={() => toggleSection("admit-card")}
-          />
+          <div className="min-w-0 space-y-6">
+            {activeSectionMeta && (
+              <div className="rounded-[28px] border border-slate-200/70 bg-white/90 px-5 py-4 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+                      Current Workspace
+                    </p>
+                    <p className="mt-2 text-xl font-bold text-slate-900">
+                      {activeSectionMeta.title}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {activeSectionMeta.helper}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection("")}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Close workspace
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <MarksheetSection
-            students={students}
-            isOpen={activeSection === "marksheet"}
-            onToggle={() => toggleSection("marksheet")}
-          />
-
-          <TransferCertificateSection
-            students={students}
-            isOpen={activeSection === "transfer-certificate"}
-            onToggle={() => toggleSection("transfer-certificate")}
-          />
+            {renderActiveSection()}
+          </div>
         </div>
       </div>
     </div>
