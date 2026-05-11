@@ -113,7 +113,8 @@ export default function AdmitCardPreview({
                   <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                     <th className="border-b border-slate-200 pb-2">Day</th>
                     <th className="border-b border-slate-200 pb-2">Date</th>
-                    <th className="border-b border-slate-200 pb-2">Subject</th>
+                    <th className="border-b border-slate-200 pb-2">Shift 1</th>
+                    <th className="border-b border-slate-200 pb-2">Shift 2</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,14 +127,17 @@ export default function AdmitCardPreview({
                         {row.date}
                       </td>
                       <td className="py-2 border-b border-slate-100">
-                        {row.subject}
+                        {row.shift1Subject || row.subject || "--"}
+                      </td>
+                      <td className="py-2 border-b border-slate-100">
+                        {row.shift2Subject || "--"}
                       </td>
                     </tr>
                   ))}
                   {scheduleRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan="3"
+                        colSpan="4"
                         className="py-3 text-slate-500 text-sm"
                       >
                         No timetable for this class.
