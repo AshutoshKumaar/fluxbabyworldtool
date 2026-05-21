@@ -358,7 +358,7 @@ export default function TransferCertificateSection({
                   <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-3 text-center">
                       <p className="text-2xl text-blue-700" style={{ fontFamily: "cursive" }}>
-                        Gyanvi
+                        Monika Singh
                       </p>
                       <p className="text-[11px] font-semibold text-slate-500">
                         Principal
@@ -366,7 +366,7 @@ export default function TransferCertificateSection({
                     </div>
                     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-3 text-center">
                       <p className="text-2xl text-blue-700" style={{ fontFamily: "cursive" }}>
-                        Monika Singh
+                        Munna Singh
                       </p>
                       <p className="text-[11px] font-semibold text-slate-500">
                         MD
