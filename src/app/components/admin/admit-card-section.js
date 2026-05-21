@@ -694,13 +694,13 @@ export default function AdmitCardSection({
               <div class="footer">
                 <div>
                   <div class="sig-wrap">
-                    <div class="sig-name">Gyanvi</div>
+                    <div class="sig-name">Monika Singh</div>
                     <div class="sig-title">Principal</div>
                   </div>
                 </div>
                 <div>
                   <div class="sig-wrap">
-                    <div class="sig-name">Monika Singh</div>
+                    <div class="sig-name">Munna Singh</div>
                     <div class="sig-title">MD</div>
                   </div>
                 </div>
@@ -1272,7 +1272,7 @@ export default function AdmitCardSection({
                         className="text-lg text-blue-700 leading-none"
                         style={{ fontFamily: "cursive" }}
                       >
-                        Gyanvi
+                        Monika Singh
                       </span>
                       <span className="mt-1 text-[10px] text-slate-500 font-semibold">
                         Principal
@@ -1283,7 +1283,7 @@ export default function AdmitCardSection({
                         className="text-lg text-blue-700 leading-none"
                         style={{ fontFamily: "cursive" }}
                       >
-                        Monika Singh
+                        Munna Singh
                       </span>
                       <span className="mt-1 text-[10px] text-slate-500 font-semibold">
                         MD

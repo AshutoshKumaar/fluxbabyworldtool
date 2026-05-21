@@ -165,11 +165,11 @@ export const buildTransferCertificateHtml = (tc = {}) => {
             </table>
             <div class="footer">
               <div class="sig-wrap">
-                <div class="sig-name">Gyanvi</div>
+                <div class="sig-name">Monika Singh</div>
                 <div class="sig-title">Principal</div>
               </div>
               <div class="sig-wrap">
-                <div class="sig-name">Monika Singh</div>
+                <div class="sig-name">Munna Singh</div>
                 <div class="sig-title">MD</div>
               </div>
               <div class="seal">School Seal</div>

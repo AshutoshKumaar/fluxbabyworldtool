@@ -174,8 +174,8 @@ export default function ReportCardPreview({
         </div>
 
         <div className="mt-auto grid gap-4 border-t border-slate-200 px-4 py-5 md:grid-cols-3">
-          <SignatureBox name="Gyanvi" label="Principal" />
-          <SignatureBox name="Monika Singh" label="MD" />
+          <SignatureBox name="Monika Singh" label="Principal" />
+          <SignatureBox name="Munna Singh" label="MD" />
           <div className="flex min-h-[88px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/18 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
             School Seal
           </div>
