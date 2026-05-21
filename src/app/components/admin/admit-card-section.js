@@ -15,7 +15,7 @@ import {
   setDoc
 } from "firebase/firestore";
 
-const emptyRow = { day: "", date: "", subject: "" };
+const emptyRow = { day: "", date: "", shift1Subject: "", shift2Subject: "" };
 const primaryScheduleKey = "1-5";
 const lowerClassOptions = ["Pre Nursery", "Nursery", "LKG", "UKG"];
 const timetableClassOptions = [...lowerClassOptions, primaryScheduleKey];
@@ -49,6 +49,13 @@ const toIsoDate = (value) => {
   }
   return "";
 };
+
+const normalizeScheduleRow = (row = {}) => ({
+  ...row,
+  date: toIsoDate(row.date),
+  shift1Subject: row.shift1Subject || row.subject || "",
+  shift2Subject: row.shift2Subject || ""
+});
 
 const formatClassSection = (student) => {
   if (!student) return "--";
@@ -195,10 +202,7 @@ export default function AdmitCardSection({
     const map = {};
     snap.docs.forEach((docSnap) => {
       const data = docSnap.data();
-      const rows = (data.rows || []).map((row) => ({
-        ...row,
-        date: toIsoDate(row.date)
-      }));
+      const rows = (data.rows || []).map(normalizeScheduleRow);
       const className = normalizeScheduleKey(data.className || docSnap.id);
       map[className] = rows;
     });
@@ -211,10 +215,7 @@ export default function AdmitCardSection({
         doc(db, "exams", examId, "schedules", className)
       );
       if (legacyDoc.exists()) {
-        const rows = (legacyDoc.data()?.rows || []).map((row) => ({
-          ...row,
-          date: toIsoDate(row.date)
-        }));
+        const rows = (legacyDoc.data()?.rows || []).map(normalizeScheduleRow);
         map[className] = rows;
       }
     }
@@ -370,10 +371,13 @@ export default function AdmitCardSection({
     if (!selectedExamId) return;
     const rows = scheduleDrafts[selectedClass] || [];
     const hasInvalidRows = rows.some(
-      (row) => !row.day || !toIsoDate(row.date) || !row.subject?.trim()
+      (row) =>
+        !row.day ||
+        !toIsoDate(row.date) ||
+        (!row.shift1Subject?.trim() && !row.shift2Subject?.trim())
     );
     if (!rows.length || hasInvalidRows) {
-      showToast("Each row needs day, date and subject.", "error");
+      showToast("Each row needs day, date, and at least one shift subject.", "error");
       return;
     }
     setSavingSchedule(true);
@@ -385,7 +389,9 @@ export default function AdmitCardSection({
           rows: rows.map((row) => ({
             day: row.day,
             date: toIsoDate(row.date),
-            subject: row.subject.trim()
+            shift1Subject: row.shift1Subject?.trim() || "",
+            shift2Subject: row.shift2Subject?.trim() || "",
+            subject: row.shift1Subject?.trim() || row.shift2Subject?.trim() || ""
           })),
           updatedAt: serverTimestamp()
         },
@@ -553,7 +559,8 @@ export default function AdmitCardSection({
           <tr>
             <td>${row.day}</td>
             <td>${formatDate(row.date)}</td>
-            <td>${row.subject}</td>
+            <td>${row.shift1Subject || row.subject || "--"}</td>
+            <td>${row.shift2Subject || "--"}</td>
           </tr>
         `
       )
@@ -614,7 +621,7 @@ export default function AdmitCardSection({
                 <div class="email">E-mail: fluxbabyworld@gmail.com</div>
               </div>
             </div>
-            <div class="exam-banner">FINAL TERM EXAMINATION DATE SHEET ${session}</div>
+            <div class="exam-banner">${examName || "Examination"} Examination Routine ${session}</div>
             <div class="content">
               <div class="row">
                 <img class="photo" src="${student.photoUrl || "/logo.png"}" alt="Student Photo" onerror="this.onerror=null;this.src='/logo.png';this.style.objectFit='contain';this.style.padding='6px';" />
@@ -683,7 +690,8 @@ export default function AdmitCardSection({
                   <tr>
                     <th>Day</th>
                     <th>Date</th>
-                    <th>Subject</th>
+                    <th>Shift 1</th>
+                    <th>Shift 2</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -905,7 +913,7 @@ export default function AdmitCardSection({
                 {rowsForClass.map((row, index) => (
                   <div
                     key={`${row.day}-${index}`}
-                    className="grid grid-cols-1 md:grid-cols-5 gap-2"
+                    className="grid grid-cols-1 md:grid-cols-6 gap-2"
                   >
                     <select
                       value={row.day}
@@ -929,14 +937,25 @@ export default function AdmitCardSection({
                       }
                       className="h-10 border border-slate-200 rounded-lg px-3 text-sm w-full md:col-span-1"
                     />
-                    <div className="flex flex-col sm:flex-row gap-2 md:col-span-3">
+                    <div className="flex flex-col sm:flex-row gap-2 md:col-span-4">
                       <input
-                        value={row.subject}
+                        value={row.shift1Subject || row.subject || ""}
                         onChange={(e) =>
-                          updateScheduleRow(index, { subject: e.target.value })
+                          updateScheduleRow(index, {
+                            shift1Subject: e.target.value,
+                            subject: e.target.value
+                          })
                         }
                         className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm w-full"
-                        placeholder="Subject"
+                        placeholder="Shift 1 subject"
+                      />
+                      <input
+                        value={row.shift2Subject || ""}
+                        onChange={(e) =>
+                          updateScheduleRow(index, { shift2Subject: e.target.value })
+                        }
+                        className="h-10 flex-1 border border-slate-200 rounded-lg px-3 text-sm w-full"
+                        placeholder="Shift 2 subject"
                       />
                       <button
                         type="button"
@@ -1108,7 +1127,8 @@ export default function AdmitCardSection({
                           <tr className="text-left text-xs uppercase tracking-wider text-slate-500">
                             <th className="border-b border-slate-200 pb-2">Day</th>
                             <th className="border-b border-slate-200 pb-2">Date</th>
-                            <th className="border-b border-slate-200 pb-2">Subject</th>
+                            <th className="border-b border-slate-200 pb-2">Shift 1</th>
+                            <th className="border-b border-slate-200 pb-2">Shift 2</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1121,7 +1141,10 @@ export default function AdmitCardSection({
                               {formatDate(row.date)}
                             </td>
                               <td className="py-2 border-b border-slate-100">
-                                {row.subject}
+                                {row.shift1Subject || row.subject || "--"}
+                              </td>
+                              <td className="py-2 border-b border-slate-100">
+                                {row.shift2Subject || "--"}
                               </td>
                             </tr>
                           ))}

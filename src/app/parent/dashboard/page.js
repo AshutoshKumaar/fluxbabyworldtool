@@ -105,6 +105,12 @@ const isPrimaryScheduleClass = (className) => {
 const getScheduleKeyForClass = (className) =>
   isPrimaryScheduleClass(className) ? primaryScheduleKey : normalizeSchoolClass(className);
 
+const normalizeScheduleRow = (row = {}) => ({
+  ...row,
+  shift1Subject: row.shift1Subject || row.subject || "",
+  shift2Subject: row.shift2Subject || ""
+});
+
 const getShiftNameForClass = (className) =>
   isPrimaryScheduleClass(className) ? "First Shift" : "Second Shift";
 
@@ -227,7 +233,7 @@ function ParentDashboard() {
               doc(db, "exams", latestExam.id, "schedules", classKey)
             );
           }
-          const scheduleData = scheduleDoc.data()?.rows || [];
+          const scheduleData = (scheduleDoc.data()?.rows || []).map(normalizeScheduleRow);
           setScheduleRows(scheduleData);
 
           const permissionDoc = await getDoc(
@@ -393,7 +399,8 @@ function ParentDashboard() {
           <tr>
             <td>${row.day}</td>
             <td>${row.date}</td>
-            <td>${row.subject}</td>
+            <td>${row.shift1Subject || row.subject || "--"}</td>
+            <td>${row.shift2Subject || "--"}</td>
           </tr>
         `
       )
@@ -454,7 +461,7 @@ function ParentDashboard() {
                 <div class="email">E-mail: fluxbabyworld@gmail.com</div>
               </div>
             </div>
-            <div class="exam-banner">FINAL TERM EXAMINATION DATE SHEET ${exam.session || ""}</div>
+            <div class="exam-banner">${exam.examName || "Examination"} Examination Routine ${exam.session || ""}</div>
             <div class="content">
               <div class="row">
                 <img class="photo" src="${student.photoUrl || "/logo.png"}" alt="Student Photo" onerror="this.onerror=null;this.src='/logo.png';this.style.objectFit='contain';this.style.padding='6px';" />
@@ -523,7 +530,8 @@ function ParentDashboard() {
                   <tr>
                     <th>Day</th>
                     <th>Date</th>
-                    <th>Subject</th>
+                    <th>Shift 1</th>
+                    <th>Shift 2</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1388,4 +1396,3 @@ function ParentDashboard() {
 }
 
 export default ParentDashboard;
-
