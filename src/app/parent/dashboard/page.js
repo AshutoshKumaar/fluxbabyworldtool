@@ -293,7 +293,8 @@ function ParentDashboard() {
   }, [router]);
 
   const totalDue = useMemo(() => Math.max(0, getTotalDue(fees)), [fees]);
-  const isPaid = totalDue <= 0;
+  const hasFeesSetup = fees.length > 0;
+  const isPaid = hasFeesSetup && totalDue <= 0;
   const canDownload = isPaid || allowDownload;
   const attendanceSummary = useMemo(() => {
     const totalDays = attendanceRecords.length;
@@ -347,8 +348,8 @@ function ParentDashboard() {
   const paymentStatus = paymentRequest?.status || "";
   const paymentLocked =
     paymentStatus === "submitted" || paymentStatus === "verified";
-  const blockReason = !isPaid && !allowDownload
-    ? "\u092c\u0915\u093e\u092f\u093e \u0930\u093e\u0936\u093f \u092d\u0941\u0917\u0924\u093e\u0928 \u0915\u093f\u090f \u092c\u093f\u0928\u093e Admit Card download \u0928\u0939\u0940\u0902 \u0939\u094b\u0917\u093e\u0964"
+  const blockReason = !canDownload
+    ? (hasFeesSetup ? "\u092c\u0915\u093e\u092f\u093e \u0930\u093e\u0936\u093f \u092d\u0941\u0917\u0924\u093e\u0928 \u0915\u093f\u090f \u092c\u093f\u0928\u093e Admit Card download \u0928\u0939\u0940\u0902 \u0939\u094b\u0917\u093e\u0964" : "Fees not setup. Contact school admin.")
     : "";
   const isWaitingForVerification = paymentRequest?.status === "submitted";
   const waitingStartedAt = getDateFromValue(paymentRequest?.submittedAt);
@@ -540,8 +541,8 @@ function ParentDashboard() {
               </table>
 
               <div class="footer">
-                <div><div class="sig-wrap"><div class="sig-name">Gyanvi</div><div class="sig-title">Principal</div></div></div>
-                <div><div class="sig-wrap"><div class="sig-name">Monika Singh</div><div class="sig-title">MD</div></div></div>
+                <div><div class="sig-wrap"><div class="sig-name">Monika Singh</div><div class="sig-title">Principal</div></div></div>
+                <div><div class="sig-wrap"><div class="sig-name">Munna Singh</div><div class="sig-title">MD</div></div></div>
                 <div><div class="seal">School Seal</div></div>
               </div>
             </div>

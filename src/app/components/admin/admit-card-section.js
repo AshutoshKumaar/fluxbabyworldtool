@@ -523,7 +523,8 @@ export default function AdmitCardSection({
 
   const selectedFees = selectedId ? feeCache[selectedId] || [] : [];
   const totalDue = getTotalDue(selectedFees);
-  const isPaid = totalDue <= 0;
+  const hasFeesSetup = selectedFees.length > 0;
+  const isPaid = hasFeesSetup && totalDue <= 0;
   const allowDownload = permissionMap[selectedId]?.allowDownload || false;
   const paymentRequest = permissionMap[selectedId]?.paymentRequest || null;
   const canDownload = isPaid || allowDownload;
